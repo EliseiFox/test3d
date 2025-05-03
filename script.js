@@ -21,7 +21,7 @@ const TERRAIN_TEXTURE_PATH = 'grass_texture_1024.png'; // Путь к вашей
 const TERRAIN_TEXTURE_TILE_SIZE = 80;     // Размер в мировых единицах, на который натягивается один тайл текстуры - увеличено, чтобы текстура не была слишком мелкой
 
 // Параметры генерации домов
-const NUM_HOUSES = 100;                     // Количество генерируемых домов
+const NUM_HOUSES = 100;                     // Количество генерируемых домов (попыток размещения)
 const HOUSE_TEXTURE_PATH = 'house_texture_398_239.png'; // Путь к текстуре дома (398x239)
 const HOUSE_TEXTURE_WIDTH_PX = 398;         // Ширина текстуры дома в пикселях
 const HOUSE_TEXTURE_HEIGHT_PX = 239;        // Высота текстуры дома в пикселях
@@ -33,7 +33,8 @@ const HOUSE_MAX_WIDTH = 15.0;               // Максимальная шири
 const HOUSE_MIN_HEIGHT = 20.0;              // Минимальная высота дома
 const HOUSE_MAX_HEIGHT = 80.0;              // Максимальная высота дома
 const HOUSE_SUBMERSION_DEPTH = 0.5;         // Насколько дом "утоплен" в землю
-const HOUSE_PLACEMENT_RADIUS = TERRAIN_SIZE / 2 - 20; // Радиус внутри мира, где могут появляться дома (немного меньше размера ландшафта)
+// const HOUSE_PLACEMENT_RADIUS = TERRAIN_SIZE / 2 - 20; // Радиус внутри мира, где могут появляться дома (немного меньше размера ландшафта) - Заменено на квадратную область с отступом
+const HOUSE_PLACEMENT_MARGIN = 50;           // Отступ от края ландшафта для размещения домов
 const HOUSE_MAX_SLOPE_DEGREES = 25;         // Максимальный наклон рельефа в градусах, на котором можно поставить дом
 
 
@@ -74,6 +75,7 @@ let houseRandomSeed;
 function setHouseSeed(seed) {
     // Используем простое LCG для генерации случайных чисел по сиду
     // Modulo и множитель выбраны для достаточно хорошего распределения
+    // Используем validatedSeed от Simplex Noise для совместимости, но сбросим его
     houseRandomSeed = Math.abs(seed) % 2147474937; // Большое простое число
     if (houseRandomSeed <= 0) houseRandomSeed = 1; // Сид не должен быть 0
 }
@@ -102,7 +104,7 @@ function init() {
     console.log("Генерация ландшафта с сидом:", validatedSeed);
 
     // Устанавливаем сид для генератора случайных чисел домов
-    setHouseSeed(WORLD_SEED_NUMBER);
+    setHouseSeed(WORLD_SEED_NUMBER); // Используем тот же сид для повторяемости
     console.log("Генерация домов с сидом:", WORLD_SEED_NUMBER);
 
 
@@ -139,6 +141,7 @@ function init() {
     generateTerrain();
 
     // ------------- Генерируем и размещаем дома -------------
+    // Важно: Дома генерируются после ландшафта, т.к. raycaster'у нужен terrainMesh
     generateHouses();
 
 
@@ -366,8 +369,8 @@ function generateHouses() {
     );
 
     const houseMaterial = new THREE.MeshLambertMaterial({
-         map: houseTexture.isTexture ? houseTexture : null, // Use texture if loaded, otherwise null
-         color: houseTexture.isTexture ? null : 0x8b4513 // Brown fallback color if texture not loaded yet
+         map: houseTexture && houseTexture.isTexture ? houseTexture : null, // Use texture if loaded, otherwise null
+         color: houseTexture && houseTexture.isTexture ? null : 0x8b4513 // Brown fallback color if texture not loaded yet
     });
     // Add a flag to identify house materials later for updating
     houseMaterial.userData.isHouseMaterial = true;
@@ -375,24 +378,36 @@ function generateHouses() {
 
     // Raycaster для определения высоты и нормали рельефа под домом
     const houseRaycaster = new THREE.Raycaster();
-    const raycastOriginHeight = TERRAIN_HEIGHT_SCALE * 2 + HOUSE_MAX_HEIGHT + 10; // Достаточно высоко над любой возможной точкой рельефа
+    // Начало луча значительно выше максимальной возможной высоты рельефа
+    const raycastOriginHeight = TERRAIN_HEIGHT_SCALE + TERRAIN_HEIGHT_SCALE * 2 + HOUSE_MAX_HEIGHT + 10; // Достаточно высоко
+    // Длина луча от raycastOriginHeight до самой низкой точки рельефа (-TERRAIN_HEIGHT_SCALE) плюс запас
+    const raycastDistance = raycastOriginHeight + TERRAIN_HEIGHT_SCALE + 5;
+
 
     const maxSlopeCos = Math.cos(THREE.MathUtils.degToRad(HOUSE_MAX_SLOPE_DEGREES));
 
+    // Определяем границы квадратной области для размещения домов с учетом отступа
+    const terrainHalfSize = TERRAIN_SIZE / 2;
+    const minX = -terrainHalfSize + HOUSE_PLACEMENT_MARGIN;
+    const maxX = terrainHalfSize - HOUSE_PLACEMENT_MARGIN;
+    const minZ = -terrainHalfSize + HOUSE_PLACEMENT_MARGIN;
+    const maxZ = terrainHalfSize - HOUSE_PLACEMENT_MARGIN;
+
+    let placedHousesCount = 0; // Счетчик успешно размещенных домов
 
     for (let i = 0; i < NUM_HOUSES; i++) {
-        // Генерируем случайные координаты для дома в пределах радиуса
-        const angle = houseRandom() * Math.PI * 2;
-        const radius = houseRandom() * HOUSE_PLACEMENT_RADIUS;
-        const randX = Math.cos(angle) * radius;
-        const randZ = Math.sin(angle) * radius;
+        // Генерируем случайные координаты равномерно в пределах квадратной области с отступом
+        const randX = houseRandom() * (maxX - minX) + minX;
+        const randZ = houseRandom() * (maxZ - minZ) + minZ;
 
         // Точка, с которой начинаем луч вниз
         const rayOrigin = new THREE.Vector3(randX, raycastOriginHeight, randZ);
         houseRaycaster.set(rayOrigin, down);
-        houseRaycaster.far = raycastOriginHeight + TERRAIN_HEIGHT_SCALE * 2 + 10; // Длина луча достаточна, чтобы достать до самой низкой точки
+        houseRaycaster.far = raycastDistance; // Устанавливаем достаточную длину луча
 
-        const intersects = houseRaycaster.intersectObject(terrainMesh, false);
+        // Проверяем пересечение луча с мешем рельефа
+        // Добавляем terrainMesh в массив объектов для проверки
+        const intersects = houseRaycaster.intersectObject(terrainMesh, false); // Передаем terrainMesh как единственный объект для проверки
 
         if (intersects.length > 0) {
             const hit = intersects[0];
@@ -403,6 +418,7 @@ function generateHouses() {
             // Проверяем наклон рельефа
             if (groundNormal.y < maxSlopeCos) {
                 // Слишком крутой склон, пропускаем этот дом
+                // console.log(`Skipped house at ${randX.toFixed(2)}, ${randZ.toFixed(2)} due to slope: ${THREE.MathUtils.radToDeg(Math.acos(groundNormal.y)).toFixed(2)} degrees`);
                 continue;
             }
 
@@ -414,139 +430,42 @@ function generateHouses() {
 
 
             // Создаем геометрию коробки. BoxGeometry(width, height, depth) -> (X, Y, Z)
-            // Мы хотим, чтобы "длина" дома была вдоль оси Z геометрии, "ширина" вдоль оси X.
+            // width = houseWidth, height = houseHeight, depth = houseLength
             const houseGeometry = new THREE.BoxGeometry(houseWidth, houseHeight, houseLength);
 
             // Настраиваем UV координаты для правильного наложения текстуры с повторением
-            // Текстура 398x239. Хотим, чтобы 398px натягивались на HOUSE_BASE_UNIT_SIZE мировых единиц.
-            // Вертикаль текстуры (239px) должна натягиваться на полную высоту дома.
-            // Соотношение сторон текстуры: 398 / 239
             const textureAspectRatio = HOUSE_TEXTURE_WIDTH_PX / HOUSE_TEXTURE_HEIGHT_PX;
 
             const uvs = houseGeometry.attributes.uv.array;
-            const positions = houseGeometry.attributes.position.array; // Нужны для определения, к какой грани принадлежит вершина
+            // const positions = houseGeometry.attributes.position.array; // Не нужен для этой логики UV
 
-            // Проходим по всем UV координатам (48 значений: 6 граней * 4 вершины * 2 компонента UV)
+            // Проходим по всем UV координатам и масштабируем их
+            // U мапится по горизонтали грани, V по вертикали грани.
+            // Текстура дома шире, чем выше (398x239), повторение предполагается по горизонтали текстуры.
+            // +/-X грани (Width sides, face YZ): горизонталь грани - ось Z геометрии (длина). Вертикаль грани - ось Y геометрии (высота).
+            //   Дефолт: U по Y, V по Z. Надо поменять: U по Z (длина), V по Y (высота).
+            // +/-Z грани (Length sides, face XY): горизонталь грани - ось X геометрии (ширина). Вертикаль грани - ось Y геометрии (высота).
+            //   Дефолт: U по X, V по Y. Не надо менять: U по X (ширина), V по Y (высота).
+            // +/-Y грани (Top/Bottom, face XZ): горизонталь грани - ось X геометрии (ширина). Вертикаль грани - ось Z геометрии (длина).
+            //   Дефолт: U по X, V по Z. Не надо менять: U по X (ширина), V по Z (длина).
+
             for (let j = 0; j < uvs.length; j += 2) {
                  const defaultU = uvs[j];
                  const defaultV = uvs[j + 1];
 
-                 // Определяем грань по индексу UV
-                 const faceIndex = Math.floor(j / 8); // Каждые 8 значений UV относятся к одной из 6 граней (0-5)
+                 const vertexIndex = j / 2; // Index of the vertex in the uv array
+                 const faceIndex = Math.floor(vertexIndex / 4); // Index of the face (0-5)
 
                  let uScale = 1.0;
                  let vScale = 1.0;
-                 let swapUV = false; // Нужно ли поменять местами U и V
 
-                 switch (faceIndex) {
-                     case 0: // +X face (Ширина, справа)
-                     case 1: // -X face (Ширина, слева)
-                         // На этих гранях горизонталь грани - это Y геометрии, вертикаль грани - это Z геометрии по умолчанию UV (0-1).
-                         // Мы хотим, чтобы U мапилось по ширине дома (X геометрии), V по высоте (Y геометрии).
-                         // Дефолтные UV для +/-X мапят Y(height) на U, Z(length) на V. Это не то.
-                         // Нужно вручную сопоставить координаты вершин на грани с желаемыми UV.
-                         // Vertex position: positions[j*3/2], positions[j*3/2+1], positions[j*3/2+2]
-                         // На +/-X грани, positions[j*3/2] (X) = +/-houseWidth/2. Y = positions[j*3/2+1], Z = positions[j*3/2+2].
-                         // Мы хотим U маппить по Z (длина дома), V по Y (высота дома).
-                         // U: маппируем Z от -houseLength/2 до +houseLength/2 с повторением
-                         // V: маппируем Y от -houseHeight/2 до +houseHeight/2 (или 0 до houseHeight) без повторения (один раз на всю высоту)
-                         // Дефолтные UV: u = (vy + height/2) / height, v = (vz + length/2) / length  ? Нет, это не так.
-                         // Дефолтные UV на +/-X мапят (y, z) этой грани на (u, v) [0,1]x[0,1].
-                         // Реальная горизонталь грани (+/-X) - это Ось Z геометрии (длина дома).
-                         // Реальная вертикаль грани (+/-X) - это Ось Y геометрии (высота дома).
-                         // Мы хотим U маппить по Z (length), V по Y (height).
-                         // UScale: повторение по Z = length / HOUSE_BASE_UNIT_SIZE
-                         // VScale: повторение по Y = height / (HOUSE_BASE_UNIT_SIZE / textureAspectRatio) ? No, just map 0-1 V to height.
-                         // Let's map U to the Z coordinate, scaled by HOUSE_BASE_UNIT_SIZE
-                         // Let's map V to the Y coordinate, scaled to 0-1 over height.
-                         // Default U on +/-X is based on local Y, Default V is based on local Z.
-                         // We need U based on global Z (building length axis), V based on global Y (building height axis).
-                         // For +/-X face, the default UVs cover the YZ plane of the face. Default U is based on Y coord, Default V on Z coord.
-                         // We want U = scaled Z, V = scaled Y.
-                         // U: map vertex Z pos (-length/2 to length/2) to U, scaled by repeat factor.
-                         // V: map vertex Y pos (-height/2 to height/2) to V, scaled to 0-1.
-                         const vY = positions[j * 1.5 + 1]; // Y coordinate of vertex
-                         const vZ = positions[j * 1.5 + 2]; // Z coordinate of vertex (this is building length axis)
-
-                         uvs[j] = (vZ / houseLength + 0.5) * (houseLength / HOUSE_BASE_UNIT_SIZE); // Map Z (-length/2 to +length/2) to U, then scale
-                         uvs[j + 1] = vY / houseHeight + 0.5; // Map Y (-height/2 to +height/2) to V (0 to 1)
-                         break;
-
-                     case 2: // +Y face (Верх)
-                     case 3: // -Y face (Низ)
-                         // На этих гранях горизонталь грани - это X геометрии (ширина), вертикаль грани - это Z геометрии (длина) по умолчанию UV (0-1).
-                         // Мы хотим U маппить по X (ширина), V по Z (длина).
-                         // Default U on +/-Y is based on local X, Default V is based on local Z.
-                         // This is mostly correct, just need scaling.
-                         uScale = houseWidth / HOUSE_BASE_UNIT_SIZE * textureAspectRatio; // Scale U by width, adjusted by texture aspect
-                         vScale = houseLength / HOUSE_BASE_UNIT_SIZE; // Scale V by length
-                         uvs[j] = defaultU * uScale;
-                         uvs[j+1] = defaultV * vScale;
-                         break;
-
-                     case 4: // +Z face (Длина, спереди)
-                     case 5: // -Z face (Длина, сзади)
-                          // На этих гранях горизонталь грани - это X геометрии (ширина), вертикаль грани - это Y геометрии (высота) по умолчанию UV (0-1).
-                          // Мы хотим U маппить по Z (длина дома), V по Y (высота дома).
-                          // Дефолтные UV для +/-Z мапят X(width) на U, Y(height) на V.
-                          // Реальная горизонталь грани (+/-Z) - это Ось X геометрии (ширина дома).
-                          // Реальная вертикаль грани (+/-Z) - это Ось Y геометрии (высота дома).
-                          // Мы хотим U маппить по Z (length), V по Y (height).
-                          // This is the same issue as +/-X. Need manual mapping based on vertex position.
-                          // On +/-Z face, X = positions[j*1.5], Y = positions[j*1.5+1], Z = +/-houseLength/2.
-                          // U: map Z (-length/2 to length/2) to U, scaled by repeat factor.
-                          // V: map Y (-height/2 to height/2) to V (0 to 1).
-                           const vX_z = positions[j * 1.5]; // X coordinate of vertex (this is building width axis on this face)
-                           const vY_z = positions[j * 1.5 + 1]; // Y coordinate of vertex (this is building height axis)
-                           const vZ_z = positions[j * 1.5 + 2]; // Z coordinate of vertex (constant +/-length/2 for this face)
-
-                           // U should map along the *building's* Z axis (length). The vertex Z is constant on this face.
-                           // This confirms my initial confusion. The texture needs to tile along the *horizontal direction of the face* which is the building's *width* axis (X) for +/-Z faces.
-                           // The request "текстура при удлинении дома должна повторятся" implies the texture repeats along the *building's length* axis.
-                           // Let's assume the texture repeats along the Z axis of the BoxGeometry (our houseLength).
-                           // The faces along the length are +/-Z. The horizontal direction on the +/-Z face is the X axis (building width).
-                           // Okay, the texture should repeat along the Z axis *in world space*.
-                           // The BoxGeometry's Z axis will be aligned with the world Z axis *only if the building is not rotated*.
-                           // When the building is rotated to match the slope, its local Z axis points in some arbitrary world direction.
-                           // The most common way texture mapping works for repeating textures on walls is: U maps along the *base perimeter*, V maps height.
-                           // For a box, U maps along the width on width faces, and along the length on length faces.
-                           // Let's use the UV mapping strategy that makes sense for the face dimensions:
-                           // +/- Z faces (Length sides, width x height): U maps X (width), V maps Y (height). Scale U by `width / BASE_UNIT`, V by `height / (BASE_UNIT / aspect)`.
-                           // +/- X faces (Width sides, length x height): U maps Z (length), V maps Y (height). Scale U by `length / BASE_UNIT`, V by `height / (BASE_UNIT / aspect)`.
-                           // Let's use V scale 1.0 for simplicity (texture height maps to full building height).
-                           uScale = houseWidth / HOUSE_BASE_UNIT_SIZE * textureAspectRatio; // U maps width
-                           vScale = 1.0; // V maps height
-                           uvs[j] = defaultU * uScale;
-                           uvs[j+1] = defaultV * vScale;
-                           break;
-                 }
-
-                 // Re-read the request: "текстура у которого длина по горизонту", "текстура при удлинении дома должна повторятся".
-                 // This suggests the texture is wider than tall, and the wider dimension should repeat along the *length* of the house.
-                 // BoxGeometry(width, height, length). X=width, Y=height, Z=length.
-                 // The length sides are +/-Z faces. They span X (width) and Y (height).
-                 // We want U to map along the building's Z axis (length), and V along the building's Y axis (height).
-                 // On the +/-Z face, the horizontal axis is X (width), vertical is Y (height).
-                 // This means we need to map the Z coordinate of the building (which varies along its length) to U, and Y coordinate (height) to V.
-                 // This requires manual UV calculation based on the building's world position and rotation.
-
-                 // Let's simplify again. Assume the texture should repeat along the *face's horizontal axis*, and this axis is related to the *building's* length or width.
-                 // For +/-Z faces (length sides): Face is width x height. Horizontal is width. We want texture to repeat along *length*. This is confusing.
-
-                 // Alternative interpretation: Texture is designed to tile seamlessly on a wall. The "horizontal" dimension of the texture is the repeating part.
-                 // We have faces of size (width x height) and (length x height).
-                 // For width x height faces (+/-Z): U maps width, V maps height. Repeat U by `width / BASE_UNIT`, V by `height / (BASE_UNIT / aspect)`.
-                 // For length x height faces (+/-X): U maps length, V maps height. Repeat U by `length / BASE_UNIT`, V by `height / (BASE_UNIT / aspect)`.
-                 // Use VScale = 1.0 for simplicity.
-                 // This seems the most standard UV mapping approach for repeating textures on box sides.
                  switch (faceIndex) {
                       case 0: // +X face (Width sides)
                       case 1: // -X face (Width sides)
                           // Face dimensions: length (Z) x height (Y). Default U maps Y, V maps Z.
-                          // We want U maps Z (length), V maps Y (height). Need to swap and scale.
+                          // We want U maps Z (length), V maps Y (height). Swap and scale.
                           uScale = houseLength / HOUSE_BASE_UNIT_SIZE; // U maps length (Z)
-                          vScale = 1.0; // V maps height (Y)
-                          swapUV = true; // Swap default U/V
+                          vScale = 1.0; // V maps height (Y) - texture height covers full building height
                           uvs[j] = defaultV * uScale; // Default V is based on Z extent
                           uvs[j+1] = defaultU * vScale; // Default U is based on Y extent
                           break;
@@ -587,12 +506,17 @@ function generateHouses() {
             houseMesh.quaternion.setFromUnitVectors(upVector, groundNormal);
 
             scene.add(houseMesh);
+            placedHousesCount++; // Увеличиваем счетчик успешно размещенных домов
+
         } else {
-            // Если луч не попал в рельеф (например, за границами TERRAIN_SIZE, если не ограничить),
-            // можно пропустить этот дом или попробовать другое место.
-            console.warn("Raycast для дома не попал в рельеф на координатах:", randX, randZ);
+             // Если луч не попал в рельеф, это ожидаемо, если точка находится за пределами допустимой области
+             // или на слишком крутом склоне (который отфильтрован выше).
+             // Убираем это сообщение, т.к. оно засоряет консоль и является нормальным поведением, если
+             // точки генерируются по всему миру, а дома ставятся только на части.
+             // console.warn(`Raycast для дома не попал в рельеф на координатах: ${randX.toFixed(2)}, ${randZ.toFixed(2)}`);
         }
     }
+     console.log(`Попыток разместить домов: ${NUM_HOUSES}. Успешно размещено: ${placedHousesCount}.`);
 }
 
 
@@ -620,29 +544,26 @@ function animate() {
         direction.z = Number(moveForward) - Number(moveBackward);
         direction.x = Number(moveRight) - Number(moveLeft);
 
-        // Если есть горизонтальное движение, нормализуем и устанавливаем скорость
+        // Если есть горизонтальное движение, нормализуем
         if (moveForward || moveBackward || moveLeft || moveRight) {
             direction.normalize();
-            // Горизонтальная скорость игрока
-            const speed = PLAYER_SPEED * deltaTime;
-            playerVelocity.x = direction.x * speed;
-            playerVelocity.z = direction.z * speed;
         } else {
-            // Если движения нет, замедляем игрока по горизонтали (можно использовать трение)
-            // Для простоты просто сбросим горизонтальную скорость, если нет нажатых клавиш движения
-            playerVelocity.x = 0;
-            playerVelocity.z = 0;
+            // Если нет горизонтального движения, сбрасываем горизонтальную скорость
+             direction.x = 0;
+             direction.z = 0;
         }
 
-        // Перемещаем игрока горизонтально (через контролы)
-        //controls.moveRight и controls.moveForward уже учитывают множитель скорости,
-        //поэтому умножать на deltaTime тут не нужно, если speed уже его включает.
-        //Correct usage: controls.moveRight(distance) and controls.moveForward(distance)
-        //The distance should be velocity * deltaTime
-        controls.moveRight(playerVelocity.x); // playerVelocity.x already has deltaTime included if calculated as direction.x * PLAYER_SPEED * deltaTime
-        controls.moveForward(playerVelocity.z); // playerVelocity.z already has deltaTime included
+        // Перемещаем игрока горизонтально (через контролы), учитывая время и скорость
+        // controls.moveRight и controls.moveForward ожидают расстояние
+        controls.moveRight(direction.x * PLAYER_SPEED * deltaTime);
+        controls.moveForward(direction.z * PLAYER_SPEED * deltaTime);
+
 
         // Применяем вертикальную скорость к позиции игрока (камере), учитывая время
+        // THREE.PointerLockControls управляет положением controls.getObject(),
+        // а камера прикреплена к нему. Изменение camera.position напрямую
+        // изменяет ее позицию относительно controls.getObject().
+        // Это работает для вертикального движения.
         camera.position.y += playerVelocity.y * deltaTime;
 
         // ------------- Простая коллизия с рельефом (с использованием Raycasting) -------------
@@ -694,6 +615,8 @@ function animate() {
     } else {
         // Если игра не активна (меню), останавливаем любое движение игрока
         playerVelocity.set(0,0,0);
+         direction.x = 0;
+         direction.z = 0;
         // Camera position is not updated by controls.move if controls are unlocked,
         // and vertical physics loop is inside the isGameActive check. So camera position
         // remains fixed vertically when unlocked.
