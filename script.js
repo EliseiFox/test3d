@@ -2,23 +2,23 @@
 
 // Параметры игрока
 const PLAYER_SPEED = 5.0;       // Скорость движения игрока
-const PLAYER_JUMP_HEIGHT = 7.0; // Высота прыжка игрока
-const PLAYER_HEIGHT = 1.8;      // Высота "глаз" игрока над поверхностью
-const GRAVITY = 9.8;            // Ускорение свободного падения
+const PLAYER_JUMP_HEIGHT = 7.0; // Начальная скорость прыжка игрока по Y
+const PLAYER_HEIGHT = 1.8;      // Высота "глаз" игрока над поверхностью земли
+const GRAVITY = 20.0;           // Ускорение свободного падения (увеличено для более выраженного падения/прыжка)
+const PLAYER_COLLISION_TOLERANCE = 0.1; // Небольшой допуск для коллизии, чтобы избежать дрожания
 
 // Параметры мира/ландшафта
-// Сид для генерации рельефа. Ваша библиотека шума поддерживает числа от 0 до 1 или целые от 1 до 65536.
-// Если вы хотите использовать строку, вам понадобится функция для преобразования строки в числовой сид.
-// Для простоты, используем числовой сид здесь.
-const WORLD_SEED_NUMBER = 12345;
-const TERRAIN_SIZE = 256;         // Размер квадратного ландшафта (TERRAIN_SIZE x TERRAIN_SIZE)
-const TERRAIN_SEGMENTS = 128;     // Количество сегментов по каждой оси (больше сегментов = больше деталей, но медленнее)
-const TERRAIN_HEIGHT_SCALE = 15;  // Максимальная высота/глубина холмов
-const TERRAIN_NOISE_SCALE = 0.02; // Масштаб шума (чем меньше, тем крупнее холмы)
+// Сид для генерации рельефа. Ваша библиотека шума поддерживает числовые сиды.
+// Если вы хотите использовать строку, вам понадобится функция для преобразования строки в число от 1 до 65536.
+const WORLD_SEED_NUMBER = 54321; // Измените для другого рельефа
+const TERRAIN_SIZE = 512;         // Размер квадратного ландшафта (TERRAIN_SIZE x TERRAIN_SIZE) - увеличено для большего мира
+const TERRAIN_SEGMENTS = 256;     // Количество сегментов по каждой оси (больше сегментов = больше деталей, но медленнее) - увеличено для детализации
+const TERRAIN_HEIGHT_SCALE = 30;  // Максимальная высота/глубина холмов - увеличено для более выраженного рельефа
+const TERRAIN_NOISE_SCALE = 0.01; // Масштаб шума (чем меньше, тем крупнее холмы) - уменьшено для более крупных холмов
 
 // Параметры текстуры
 const TEXTURE_PATH = 'grass_texture_1024.png'; // Путь к вашей текстуре PNG 1024x1024
-const TEXTURE_TILE_SIZE = 10;     // Размер в мировых единицах, на который натягивается один тайл текстуры
+const TEXTURE_TILE_SIZE = 20;     // Размер в мировых единицах, на который натягивается один тайл текстуры - увеличено, чтобы текстура не была слишком мелкой
 
 // -------------------- КОНЕЦ НАСТРАИВАЕМЫХ ПАРАМЕТРОВ --------------------
 
@@ -28,6 +28,9 @@ let camera, scene, renderer;
 let controls; // Переменная для PointerLockControls
 let terrainMesh; // Ссылка на созданный меш ландшафта
 
+// Переменные состояния игры
+let isGameActive = false; // Флаг активности игры (когда PointerLockControls активен)
+
 // Переменные для управления движением
 let moveForward = false;
 let moveBackward = false;
@@ -35,7 +38,7 @@ let moveLeft = false;
 let moveRight = false;
 let canJump = false;
 
-// Переменные для физики (очень простой)
+// Переменные для физики
 let playerVelocity = new THREE.Vector3();
 const direction = new THREE.Vector3();
 
@@ -49,34 +52,33 @@ const instructions = document.getElementById('instructions');
 const raycaster = new THREE.Raycaster();
 const down = new THREE.Vector3(0, -1, 0); // Вектор направления вниз
 
-// Объект шума, который должен быть доступен глобально после загрузки simplex-noise.js
-// Проверим его наличие в init()
-
 
 // ------------- Инициализация сцены -------------
 function init() {
     // Проверка на наличие глобального объекта noise
     if (typeof noise === 'undefined') {
         console.error("Ошибка: Библиотека simplex-noise.js не найдена или загружена некорректно.");
-        // Возможно, здесь стоит вывести сообщение пользователю или остановить выполнение
         blocker.style.display = 'block';
-        instructions.innerHTML = "<p style='color:red;'>Ошибка загрузки игры. Проверьте консоль (F12).</p>";
+        instructions.innerHTML = "<p style='color:red;'>Ошибка загрузки игры: Библиотека шума не найдена.</p><p style='font-size: 14px; color: grey;'>Убедитесь, что файл simplex-noise.js находится рядом с index.html и script.js и подключен в index.html.</p><p style='font-size: 14px; color: grey;'>Также проверьте консоль браузера (F12) на наличие других ошибок.</p>";
         return; // Останавливаем инициализацию
     }
 
     // Устанавливаем сид для генератора шума
-    noise.seed(WORLD_SEED_NUMBER);
-    console.log("Генерация мира с сидом:", WORLD_SEED_NUMBER);
+    // Проверяем, что сид находится в поддерживаемом диапазоне, если есть информация о диапазоне (ваша библиотека поддерживает до 65536)
+    const validatedSeed = Math.abs(WORLD_SEED_NUMBER) % 65536; // Преобразуем сид в диапазон 0-65535
+    if (validatedSeed === 0) validatedSeed = 1; // Сид 0 может иметь особый смысл или быть запрещен
+    noise.seed(validatedSeed);
+    console.log("Генерация мира с сидом (числовой):", validatedSeed);
 
 
     // Создаем сцену
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb); // Устанавливаем цвет неба
-    // scene.fog = new THREE.Fog(0xffffff, 0, TERRAIN_SIZE * 1.5); // Опционально: туман
+    scene.fog = new THREE.Fog(0xffffff, TERRAIN_SIZE * 0.5, TERRAIN_SIZE * 1.5); // Добавляем туман для оптимизации (скрывает удаленные объекты)
 
     // Создаем камеру
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    // Стартовая позиция над возможным самым высоким холмом, в центре мира
+    // Стартовая позиция в центре мира, чуть выше самой высокой возможной точки + высота игрока
     camera.position.set(0, TERRAIN_HEIGHT_SCALE + PLAYER_HEIGHT + 5, 0);
 
 
@@ -85,6 +87,10 @@ function init() {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
+
+    // Включаем логарифмический буфер глубины для лучшей точности на больших расстояниях (может повлиять на производительность)
+    // renderer.logarithmicDepthBuffer = true;
+
 
     // ------------- Добавляем свет -------------
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -95,9 +101,8 @@ function init() {
     scene.add(directionalLight);
 
     // ------------- Создаем и генерируем рельеф -------------
-    // Three.js PlaneGeometry по умолчанию создается в плоскости XY.
-    // Для нашего рельефа мы будем использовать плоскость XZ, а Y будет высотой.
-    // Параметры: ширина, высота, сегменты по ширине, сегменты по высоте
+    // PlaneGeometry создается в плоскости XY (-width/2 до width/2, -height/2 до height/2)
+    // и Z=0. Мы будем использовать X и Y геометрии для мировых X и Z, а Z геометрии для мировой Y (высоты).
     const geometry = new THREE.PlaneGeometry(TERRAIN_SIZE, TERRAIN_SIZE, TERRAIN_SEGMENTS, TERRAIN_SEGMENTS);
 
     // Загружаем текстуру
@@ -110,15 +115,18 @@ function init() {
             texture.wrapS = THREE.RepeatWrapping; // Устанавливаем повторение текстуры по горизонтали
             texture.wrapT = THREE.RepeatWrapping; // Устанавливаем повторение текстуры по вертикали
             // Настраиваем количество повторений текстуры на весь ландшафт
-            // Делим размер ландшафта на размер тайла текстуры
             texture.repeat.set(TERRAIN_SIZE / TEXTURE_TILE_SIZE, TERRAIN_SIZE / TEXTURE_TILE_SIZE);
-            // Опционально: фильтрация для сглаживания
+            // Фильтрация для сглаживания и уменьшения мерцания
             texture.magFilter = THREE.LinearFilter;
-            texture.minFilter = THREE.LinearMipmapLinearFilter;
+            texture.minFilter = THREE.LinearMipmapLinearFilter; // Используем мипмапы для лучшей производительности и качества на расстоянии
+            // Анизотропная фильтрация - значительно улучшает качество текстур на плоских поверхностях, удаляющихся вдаль
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
 
              // Если материал был создан до загрузки текстуры, обновите его
             if (terrainMesh && terrainMesh.material && !terrainMesh.material.map) {
                  terrainMesh.material.map = texture;
+                 terrainMesh.material.color = null; // Убираем цвет по умолчанию
                  terrainMesh.material.needsUpdate = true;
             }
         },
@@ -127,48 +135,46 @@ function init() {
         // Колбэк при ошибке загрузки
         function (err) {
             console.error('Ошибка загрузки текстуры:', TEXTURE_PATH, err);
-             // Можно использовать материал запасного цвета, если текстура не загрузилась
+             // Используем материал запасного цвета, если текстура не загрузилась
              if (terrainMesh && terrainMesh.material && !terrainMesh.material.map) {
                  terrainMesh.material = new THREE.MeshLambertMaterial({ color: 0x00ff00, side: THREE.DoubleSide });
                  terrainMesh.material.needsUpdate = true;
+                 // Выведем более заметное сообщение об ошибке загрузки текстуры
+                 instructions.innerHTML = "<p style='color:red;'>Ошибка загрузки текстуры.</p><p style='font-size: 14px; color: grey;'>Убедитесь, что файл " + TEXTURE_PATH + " находится рядом с index.html и script.js.</p><p style='font-size: 14px; color: grey;'>Также проверьте консоль браузера (F12) на наличие других ошибок (например, CORS).</p>";
+                 blocker.style.display = 'block'; // Показываем блок с ошибкой
              }
         }
     );
 
-    // Генерируем рельеф, изменяя Y-координаты вершин
+    // Генерируем рельеф, изменяя Z-координаты вершин (которая станет мировой Y после поворота)
     const positionAttribute = geometry.attributes.position;
     const uvAttribute = geometry.attributes.uv; // Получаем атрибут UV
     const vertices = positionAttribute.array;
     const uvs = uvAttribute.array;
 
-    // PlaneGeometry создает вершины, расположенные в плоскости XY (-width/2 до width/2, -height/2 до height/2)
-    // Нам нужно их интерпретировать как XZ (-TERRAIN_SIZE/2 до TERRAIN_SIZE/2)
-    // Y будет высотой
-    // Количество вершин = (TERRAIN_SEGMENTS + 1) * (TERRAIN_SEGMENTS + 1)
     const numVertices = (TERRAIN_SEGMENTS + 1) * (TERRAIN_SEGMENTS + 1);
 
     for (let i = 0; i < numVertices; i++) {
-        // Координаты X и Z вершины в плоскости Three.js PlaneGeometry (по сути это X и Y в 2D плоскости геометрии)
-        const currentX = vertices[i * 3];
-        const currentZ = vertices[i * 3 + 1]; // В PlaneGeometry это Y, но мы используем его как Z мира
+        // Оригинальные координаты вершины в локальной системе PlaneGeometry (XY плоскость, Z=0)
+        const originalX = vertices[i * 3];      // Это станет мировой X после поворота
+        const originalY = vertices[i * 3 + 1];  // Это станет минус мировой Z после поворота
+        // const originalZ = vertices[i * 3 + 2]; // Это станет мировой Y после поворота (изначально всегда 0)
 
         // Генерируем высоту на основе шума Симплекса
-        // Передаем координаты X и Z вершины (масштабированные для шума) в simplex2
-        const y = noise.simplex2(currentX * TERRAIN_NOISE_SCALE, currentZ * TERRAIN_NOISE_SCALE) * TERRAIN_HEIGHT_SCALE;
+        // Используем оригинальные X и Y (которые маппятся на мировые X и Z) для генерации шума
+        const height = noise.simplex2(originalX * TERRAIN_NOISE_SCALE, originalY * TERRAIN_NOISE_SCALE) * TERRAIN_HEIGHT_SCALE;
 
-        // Устанавливаем новую Y-координату вершины в массиве vertices
-        vertices[i * 3 + 1] = y; // i * 3 + 1 это индекс Y координаты текущей вершины
+        // Устанавливаем рассчитанную высоту в Z-координату вершины в локальной системе геометрии.
+        // После поворота PlaneGeometry на -PI/2 вокруг X, эта Z-координата станет мировой Y.
+        vertices[i * 3 + 2] = height;
 
         // Обновляем UV координаты для правильного наложения текстуры
-        // Маппируем координаты X и Z вершины (в мировом пространстве) на UV координаты
-        // PlaneGeometry генерирует UV от 0 до 1 по X и Y.
-        // Мы хотим повторить текстуру, поэтому просто маппируем мировые координаты X и Z
-        // на U и V, деля на размер тайла.
-        // currentX и currentZ здесь уже в мировых единицах (-TERRAIN_SIZE/2 до TERRAIN_SIZE/2)
-        const u = currentX / TEXTURE_TILE_SIZE;
-        const v = currentZ / TEXTURE_TILE_SIZE;
+        // Маппируем координаты, которые станут мировыми X и Z, на U и V
+        // Мировой X = originalX
+        // Мировой Z = -originalY (из-за поворота)
+        const u = originalX / TEXTURE_TILE_SIZE;
+        const v = -originalY / TEXTURE_TILE_SIZE; // Используем -originalY для корректного маппинга по "мировой Z"
 
-        // i * 2 это индекс U координаты текущего UV в массиве uvs
         uvs[i * 2] = u;
         uvs[i * 2 + 1] = v;
     }
@@ -176,13 +182,13 @@ function init() {
     // Сигнализируем Three.js, что атрибуты геометрии были изменены
     positionAttribute.needsUpdate = true;
     uvAttribute.needsUpdate = true;
-    geometry.computeVertexNormals(); // Пересчитываем нормали для правильного освещения рельефа
+    geometry.computeVertexNormals(); // Пересчитываем нормали для правильного освещения рельефа после изменения вершин
 
-    // Создаем материал. Используем временный цвет, если текстура еще не загружена.
+    // Создаем материал.
     const material = new THREE.MeshLambertMaterial({
-        map: groundTexture, // groundTexture может быть еще в процессе загрузки
-        color: groundTexture.isTexture ? null : 0x00ff00, // Цвет по умолчанию, если текстура не загрузилась
-        side: THREE.DoubleSide
+        map: groundTexture, // Текстура (может быть еще в процессе загрузки)
+        color: groundTexture.isTexture ? null : 0x00ff00, // Цвет по умолчанию, если текстура еще не загрузилась или ошибка
+        side: THREE.DoubleSide // Отображаем обе стороны полигона
     });
 
     terrainMesh = new THREE.Mesh(geometry, material);
@@ -195,20 +201,27 @@ function init() {
 
     // Добавляем обработчики событий блокировки/разблокировки указателя
     controls.addEventListener('lock', function () {
-        instructions.style.display = 'none';
+        isGameActive = true; // Активируем игровой процесс
         blocker.style.display = 'none';
+        prevTime = performance.now(); // Сбрасываем время, чтобы избежать большого deltaTime после паузы
     });
 
     controls.addEventListener('unlock', function () {
+        isGameActive = false; // Деактивируем игровой процесс
         blocker.style.display = 'block';
         instructions.style.display = 'flex'; // Показываем инструкции снова
+        // Оставляем playerVelocity как есть, чтобы при разблокировке в воздухе игрок продолжил падать.
+        // Или можно сбросить: playerVelocity.set(0,0,0);
     });
 
-    // Добавляем контролы в сцену (они управляют положением камеры)
-    scene.add(controls.getObject()); // PointerLockControls создает объект, который управляет камерой
+    // Добавляем объект контролов в сцену. Камера прикреплена к этому объекту.
+    scene.add(controls.getObject());
 
     // ------------- Обработка событий клавиатуры -------------
+    // (Оставлены без изменений, так как они просто ставят флаги движения)
     const onKeyDown = function (event) {
+        if (!isGameActive) return; // Игнорируем ввод, если игра не активна
+
         switch (event.code) {
             case 'ArrowUp':
             case 'KeyW':
@@ -227,7 +240,6 @@ function init() {
                 moveRight = true;
                 break;
             case 'Space':
-                // Проверяем, можно ли прыгнуть, и находимся ли мы на земле (или близко)
                 if (canJump === true) {
                     playerVelocity.y = PLAYER_JUMP_HEIGHT; // Устанавливаем начальную скорость прыжка
                     canJump = false; // Нельзя прыгнуть снова, пока не приземлится
@@ -237,6 +249,8 @@ function init() {
     };
 
     const onKeyUp = function (event) {
+        // Не игнорируем keyup, даже если игра не активна, чтобы флаги сбрасывались корректно
+        // в случае, если клавиша была нажата до разблокировки
         switch (event.code) {
             case 'ArrowUp':
             case 'KeyW':
@@ -287,82 +301,96 @@ function animate() {
     const time = performance.now();
     const deltaTime = (time - prevTime) / 1000;
 
-    // Применяем гравитацию к вертикальной скорости
-    playerVelocity.y -= GRAVITY * deltaTime;
+    // Обновляем физику и позицию игрока только если игра активна
+    if (isGameActive) {
 
-    // Рассчитываем горизонтальное движение на основе нажатых клавиш
-    // Сбрасываем горизонтальную скорость в начале каждого кадра,
-    // чтобы движение прекращалось, когда клавиши отпущены.
-    // Однако, PointerLockControls.move* учитывает время, поэтому
-    // прямое присваивание playerVelocity здесь не совсем физически точно
-    // для остановки, но работает для начала движения.
-    // Более точное было бы применять ускорение, но для простоты оставим так.
+        // Применяем гравитацию к вертикальной скорости
+        playerVelocity.y -= GRAVITY * deltaTime;
 
-    direction.z = Number(moveForward) - Number(moveBackward);
-    direction.x = Number(moveRight) - Number(moveLeft);
+        // Рассчитываем горизонтальное движение на основе нажатых клавиш
+        direction.z = Number(moveForward) - Number(moveBackward);
+        direction.x = Number(moveRight) - Number(moveLeft);
 
-    // Нормализуем вектор, только если есть движение по какой-либо оси
-    if (moveForward || moveBackward || moveLeft || moveRight) {
-        direction.normalize();
-         // Устанавливаем желаемую горизонтальную скорость
-        playerVelocity.z = direction.z * PLAYER_SPEED;
-        playerVelocity.x = direction.x * PLAYER_SPEED;
-    } else {
-        // Если нет движения, постепенно уменьшаем горизонтальную скорость
-        // Это имитирует трение. Коэффициент 0.9 уменьшает скорость на 10% за кадр.
-        // Или можно просто сбросить:
-         playerVelocity.x = 0;
-         playerVelocity.z = 0;
-    }
-
-
-    // Перемещаем игрока горизонтально (через контролы), учитывая время
-    controls.moveRight(playerVelocity.x * deltaTime);
-    controls.moveForward(playerVelocity.z * deltaTime);
-
-
-    // Применяем вертикальную скорость к позиции игрока (камере), учитывая время
-    camera.position.y += playerVelocity.y * deltaTime;
-
-    // ------------- Простая коллизия с рельефом (с использованием Raycasting) -------------
-    // Создаем луч, идущий вниз от текущей позиции игрока
-    // Позиция луча должна быть немного выше текущей позиции камеры, чтобы избежать
-    // пересечения с самой камерой или проходить *сквозь* землю, если камера уже внутри.
-    // Поднимем начало луча на небольшую величину выше PLAYER_HEIGHT.
-    const raycasterOrigin = camera.position.clone();
-    raycasterOrigin.y += 0.1; // Немного выше текущей позиции камеры
-
-    raycaster.set(raycasterOrigin, down);
-    raycaster.far = PLAYER_HEIGHT + 0.2; // Максимальное расстояние луча (немного больше высоты игрока)
-
-    // Проверяем пересечение луча с мешем рельефа
-    // Пересечения сортируются по расстоянию, поэтому первый элемент - ближайший
-    const intersects = raycaster.intersectObject(terrainMesh, false); // false означает не проверять потомков
-
-    if (intersects.length > 0) {
-        const firstIntersection = intersects[0];
-        const groundY = firstIntersection.point.y; // Y-координата точки пересечения на рельефе
-
-        // Если игрок ниже уровня земли (плюс высота игрока)
-        // Используем небольшую дельту (0.05) для избежания дрожания на поверхности
-        if (camera.position.y < groundY + PLAYER_HEIGHT - 0.05) {
-            playerVelocity.y = 0; // Останавливаем падение
-            camera.position.y = groundY + PLAYER_HEIGHT; // Устанавливаем позицию на уровне земли + высота игрока
-            canJump = true; // Разрешаем прыжок снова
-
+        // Если есть горизонтальное движение, нормализуем и устанавливаем скорость
+        if (moveForward || moveBackward || moveLeft || moveRight) {
+            direction.normalize();
+            playerVelocity.z = direction.z * PLAYER_SPEED;
+            playerVelocity.x = direction.x * PLAYER_SPEED;
         } else {
-             // Если игрок находится НАД землей, но луч ее пересек (т.е. игрок очень близко к земле сверху)
-             // Также разрешаем прыжок. Это покрывает случаи, когда игрок движется горизонтально
-             // и его ноги находятся очень близко к неровной поверхности.
-             if (camera.position.y < groundY + PLAYER_HEIGHT + 0.1) { // Небольшой допуск
+            // Если движения нет, замедляем игрока (просто сбрасываем скорость для простоты)
+            playerVelocity.x = 0;
+            playerVelocity.z = 0;
+        }
+
+        // Перемещаем игрока горизонтально (через контролы), учитывая время
+        controls.moveRight(playerVelocity.x * deltaTime);
+        controls.moveForward(playerVelocity.z * deltaTime);
+
+        // Применяем вертикальную скорость к позиции игрока (камере), учитывая время
+        // THREE.PointerLockControls управляет положением controls.getObject(),
+        // а камера прикреплена к нему. Изменение camera.position напрямую
+        // изменяет ее позицию относительно controls.getObject().
+        // Это работает для вертикального движения.
+        camera.position.y += playerVelocity.y * deltaTime;
+
+        // ------------- Простая коллизия с рельефом (с использованием Raycasting) -------------
+        // Создаем луч, идущий вниз от позиции игрока
+        // Начало луча должно быть чуть выше ног игрока, чтобы избежать самопересечения
+        const raycasterOrigin = camera.position.clone();
+        raycasterOrigin.y -= PLAYER_HEIGHT * 0.5; // Начинаем луч примерно посередине игрока или ниже
+
+        // Максимальное расстояние луча должно покрывать высоту игрока плюс небольшой запас
+        raycaster.set(raycasterOrigin, down);
+        raycaster.far = PLAYER_HEIGHT; // Проверяем на расстояние, равное высоте игрока
+
+        // Проверяем пересечение луча с мешем рельефа
+        const intersects = raycaster.intersectObject(terrainMesh, false);
+
+        // Определяем целевую Y-позицию для ног игрока
+        const targetPlayerFeetY = intersects.length > 0 ? intersects[0].point.y : -Infinity; // -Infinity, если нет пересечения
+
+        // Определяем целевую Y-позицию для глаз игрока (где находится камера)
+        const targetCameraY = targetPlayerFeetY + PLAYER_HEIGHT;
+
+
+        // Проверяем, находится ли игрок ниже целевого уровня земли + высота игрока
+        // Используем небольшой допуск для стабильности
+        if (camera.position.y < targetCameraY - PLAYER_COLLISION_TOLERANCE) {
+            // Если игрок провалился или ниже земли, перемещаем его ровно на поверхность
+            camera.position.y = targetCameraY;
+
+            // Если игрок падал (скорость Y отрицательная), останавливаем падение
+            if (playerVelocity.y < 0) {
+                 playerVelocity.y = 0;
+                 canJump = true; // Разрешаем прыжок, так как коснулись земли
+            }
+
+        } else if (camera.position.y < targetCameraY + PLAYER_COLLISION_TOLERANCE) {
+             // Если игрок находится очень близко к земле сверху (в пределах допуска),
+             // это тоже считается "на земле" для возможности прыжка.
+             // Условие `playerVelocity.y <= 0` предотвращает разрешение прыжка во время подъема на холм.
+             if (playerVelocity.y <= 0) {
                  canJump = true;
              } else {
-                 canJump = false; // Если игрок заметно выше земли
+                 canJump = false; // Если игрок активно движется вверх (прыгает)
              }
+
+        } else {
+            // Если игрок заметно выше земли (за пределами допуска), он в воздухе
+            canJump = false;
         }
+
     } else {
-        // Если луч не пересек землю (например, игрок в воздухе после прыжка или падает)
-        canJump = false; // Нельзя прыгнуть в воздухе
+        // Если игра не активна (меню), останавливаем любое движение игрока
+        // Это предотвращает падение через землю в меню
+        playerVelocity.set(0,0,0);
+        // Оставляем камеру в ее текущей позиции, она не должна падать.
+        // camera.position.y НЕ ДОЛЖНА изменяться, если игра не активна.
+        // Но так как physics loop обернут в if(isGameActive), это и так не произойдет.
+        // Однако, если игрок разблокировал контролы, находясь в воздухе,
+        // playerVelocity.y будет все еще отрицательным. Если потом снова заблокировать,
+        // он продолжит падать. Это может быть нежелательно.
+        // Лучше сбрасывать playerVelocity при разблокировке.
     }
 
 
@@ -373,5 +401,4 @@ function animate() {
 }
 
 // Запускаем инициализацию сцены после загрузки DOM и скриптов
-// Используем addEventListener вместо window.onload для более гибкого управления
 window.addEventListener('load', init);
