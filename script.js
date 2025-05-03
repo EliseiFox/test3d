@@ -33,7 +33,6 @@ const HOUSE_MAX_WIDTH = 15.0;               // Максимальная шири
 const HOUSE_MIN_HEIGHT = 20.0;              // Минимальная высота дома
 const HOUSE_MAX_HEIGHT = 80.0;              // Максимальная высота дома
 const HOUSE_SUBMERSION_DEPTH = 0.5;         // Насколько дом "утоплен" в землю
-// const HOUSE_PLACEMENT_RADIUS = TERRAIN_SIZE / 2 - 20; // Радиус внутри мира, где могут появляться дома (немного меньше размера ландшафта) - Заменено на квадратную область с отступом
 const HOUSE_PLACEMENT_MARGIN = 50;           // Отступ от края ландшафта для размещения домов
 const HOUSE_MAX_SLOPE_DEGREES = 25;         // Максимальный наклон рельефа в градусах, на котором можно поставить дом
 
@@ -75,7 +74,6 @@ let houseRandomSeed;
 function setHouseSeed(seed) {
     // Используем простое LCG для генерации случайных чисел по сиду
     // Modulo и множитель выбраны для достаточно хорошего распределения
-    // Используем validatedSeed от Simplex Noise для совместимости, но сбросим его
     houseRandomSeed = Math.abs(seed) % 2147474937; // Большое простое число
     if (houseRandomSeed <= 0) houseRandomSeed = 1; // Сид не должен быть 0
 }
@@ -263,7 +261,7 @@ function generateTerrain() {
                  terrainMesh.material.needsUpdate = true;
             }
         },
-        // Колбэк прогресса загрузки (опционально)
+        // Колбэк прогресса загрузки (оционально)
         undefined,
         // Колбэк при ошибке загрузки
         function (err) {
@@ -313,6 +311,11 @@ function generateTerrain() {
     positionAttribute.needsUpdate = true;
     uvAttribute.needsUpdate = true;
     geometry.computeVertexNormals(); // Пересчитываем нормали для правильного освещения рельефа после изменения вершин
+
+    // !!! ВАЖНО: Пересчитываем Bounding Box и Bounding Sphere после изменения вершин !!!
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+
 
     // Создаем материал.
     const material = new THREE.MeshLambertMaterial({
@@ -379,9 +382,9 @@ function generateHouses() {
     // Raycaster для определения высоты и нормали рельефа под домом
     const houseRaycaster = new THREE.Raycaster();
     // Начало луча значительно выше максимальной возможной высоты рельефа
-    const raycastOriginHeight = TERRAIN_HEIGHT_SCALE + TERRAIN_HEIGHT_SCALE * 2 + HOUSE_MAX_HEIGHT + 10; // Достаточно высоко
-    // Длина луча от raycastOriginHeight до самой низкой точки рельефа (-TERRAIN_HEIGHT_SCALE) плюс запас
-    const raycastDistance = raycastOriginHeight + TERRAIN_HEIGHT_SCALE + 5;
+    const raycastOriginHeight = TERRAIN_HEIGHT_SCALE + HOUSE_MAX_HEIGHT + 50; // Start very high above max expected height (was + TERR_H_SCALE * 2 + 10)
+    // Длина луча от raycastOriginHeight до самой низкой точки рельефа (-TERRAIN_HEIGHT_SCALE) плюс большой запас
+    const raycastDistance = raycastOriginHeight + TERRAIN_HEIGHT_SCALE + 50; // Extend well below min terrain height (was + 10)
 
 
     const maxSlopeCos = Math.cos(THREE.MathUtils.degToRad(HOUSE_MAX_SLOPE_DEGREES));
@@ -406,8 +409,8 @@ function generateHouses() {
         houseRaycaster.far = raycastDistance; // Устанавливаем достаточную длину луча
 
         // Проверяем пересечение луча с мешем рельефа
-        // Добавляем terrainMesh в массив объектов для проверки
-        const intersects = houseRaycaster.intersectObject(terrainMesh, false); // Передаем terrainMesh как единственный объект для проверки
+        // Передаем terrainMesh в массив объектов для проверки
+        const intersects = houseRaycaster.intersectObject(terrainMesh, false); // Pass terrainMesh as the single object to check
 
         if (intersects.length > 0) {
             const hit = intersects[0];
@@ -437,7 +440,7 @@ function generateHouses() {
             const textureAspectRatio = HOUSE_TEXTURE_WIDTH_PX / HOUSE_TEXTURE_HEIGHT_PX;
 
             const uvs = houseGeometry.attributes.uv.array;
-            // const positions = houseGeometry.attributes.position.array; // Не нужен для этой логики UV
+            // const positions = houseGeometry.attributes.position.array; // Not needed for this UV logic
 
             // Проходим по всем UV координатам и масштабируем их
             // U мапится по горизонтали грани, V по вертикали грани.
@@ -509,11 +512,9 @@ function generateHouses() {
             placedHousesCount++; // Увеличиваем счетчик успешно размещенных домов
 
         } else {
-             // Если луч не попал в рельеф, это ожидаемо, если точка находится за пределами допустимой области
-             // или на слишком крутом склоне (который отфильтрован выше).
-             // Убираем это сообщение, т.к. оно засоряет консоль и является нормальным поведением, если
-             // точки генерируются по всему миру, а дома ставятся только на части.
-             // console.warn(`Raycast для дома не попал в рельеф на координатах: ${randX.toFixed(2)}, ${randZ.toFixed(2)}`);
+             // Raycast didn't hit. Log this only if you suspect an issue outside of normal slope filtering.
+             // Given the user's report, this log *is* the problem, so keep it for debugging.
+             console.warn(`Raycast for house ${i+1} DID NOT hit terrain at X: ${randX.toFixed(2)}, Z: ${randZ.toFixed(2)}. Ray origin Y: ${rayOrigin.y.toFixed(2)}, Far: ${raycastDistance.toFixed(2)}. Terrain Y bounds approx [${-TERRAIN_HEIGHT_SCALE}, ${TERRAIN_HEIGHT_SCALE}]`);
         }
     }
      console.log(`Попыток разместить домов: ${NUM_HOUSES}. Успешно размещено: ${placedHousesCount}.`);
@@ -574,7 +575,7 @@ function animate() {
 
         // Максимальное расстояние луча должно покрывать высоту игрока плюс небольшой запас
         raycaster.set(raycasterOrigin, down);
-        raycaster.far = PLAYER_HEIGHT; // Проверяем на расстояние, равное высоте игрока
+        raycaster.far = PLAYER_HEIGHT + PLAYER_COLLISION_TOLERANCE; // Проверяем на расстояние, равное высоте игрока + допуск
 
         // Проверяем пересечение луча с мешем рельефа
         const intersects = raycaster.intersectObject(terrainMesh, false);
