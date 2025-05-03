@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple 3D Environment with Terrain</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #87ceeb; } /* Голубое небо */
+        canvas { display: block; }
+        #blocker {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1; /* Убедимся, что он поверх canvas */
+            user-select: none; /* Запрещаем выделение текста */
+        }
+        #instructions {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            font-size: 20px;
+            color: white;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="blocker">
+        <div id="instructions">
+            <p>Кликните, чтобы начать</p>
+            <p>
+                Управление: WASD<br/>
+                Прыжок: SPACE<br/>
+                Обзор: Мышь
+            </p>
+             <p style="font-size: 14px; margin-top: 20px;">
+                Если игра не запускается или текстура не видна, проверьте консоль браузера (F12).
+            </p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+    <!-- Подключаем вашу библиотеку Simplex Noise -->
+    <script src="simplex-noise.js"></script>
+    <!-- Подключаем наш основной скрипт -->
+    <script src="script.js"></script>
+</body>
+</html>
