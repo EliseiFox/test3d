@@ -140,6 +140,7 @@ function init() {
 
     // ------------- Генерируем и размещаем дома -------------
     // Важно: Дома генерируются после ландшафта, т.к. raycaster'у нужен terrainMesh
+    // и terrainMesh должен быть полностью готов (добавлен в сцену и обновлена матрица).
     generateHouses();
 
 
@@ -313,6 +314,7 @@ function generateTerrain() {
     geometry.computeVertexNormals(); // Пересчитываем нормали для правильного освещения рельефа после изменения вершин
 
     // !!! ВАЖНО: Пересчитываем Bounding Box и Bounding Sphere после изменения вершин !!!
+    // Это помогает Raycaster быстро отсекать объекты
     geometry.computeBoundingBox();
     geometry.computeBoundingSphere();
 
@@ -328,6 +330,10 @@ function generateTerrain() {
     // PlaneGeometry создается в плоскости XY, поворачиваем ее, чтобы она лежала на XZ
     terrainMesh.rotation.x = -Math.PI / 2;
     scene.add(terrainMesh);
+
+    // !!! ВАЖНО: Принудительно обновляем мировую матрицу меша после добавления в сцену и трансформаций !!!
+    // Это гарантирует, что Raycaster будет использовать актуальные данные о положении и ориентации меша в мире.
+    terrainMesh.updateMatrixWorld(true);
 }
 
 
@@ -382,9 +388,10 @@ function generateHouses() {
     // Raycaster для определения высоты и нормали рельефа под домом
     const houseRaycaster = new THREE.Raycaster();
     // Начало луча значительно выше максимальной возможной высоты рельефа
-    const raycastOriginHeight = TERRAIN_HEIGHT_SCALE + HOUSE_MAX_HEIGHT + 50; // Start very high above max expected height (was + TERR_H_SCALE * 2 + 10)
-    // Длина луча от raycastOriginHeight до самой низкой точки рельефа (-TERRAIN_HEIGHT_SCALE) плюс большой запас
-    const raycastDistance = raycastOriginHeight + TERRAIN_HEIGHT_SCALE + 50; // Extend well below min terrain height (was + 10)
+    // Ray origin Y: 135.00, Far: 190.00. Terrain Y bounds approx [-5, 5] - этот диапазон должен работать.
+    // Давайте еще увеличим запас, чтобы быть на 100% уверенными.
+    const raycastOriginHeight = TERRAIN_HEIGHT_SCALE + HOUSE_MAX_HEIGHT + 100; // Start very high
+    const raycastDistance = raycastOriginHeight + TERRAIN_HEIGHT_SCALE + 100; // Extend well below min terrain height
 
 
     const maxSlopeCos = Math.cos(THREE.MathUtils.degToRad(HOUSE_MAX_SLOPE_DEGREES));
@@ -416,6 +423,11 @@ function generateHouses() {
             const hit = intersects[0];
             const groundPosition = hit.point; // Позиция на земле в мировых координатах
             const groundNormal = hit.face.normal.clone(); // Нормаль рельефа в локальных координатах меша
+            // !!! ВАЖНО: Нормали граней PlaneGeometry изначально находятся в локальной системе XY плоскости.
+            // После поворота меша, нужно преобразовать нормаль грани в мировые координаты.
+            // THREE.Raycaster.intersectObject уже делает это для hit.point, но hit.face.normal
+            // может быть в локальных координатах, если Raycaster не настроен иначе или есть нюансы.
+            // Убедимся, что нормаль преобразуется в мировые координаты:
             groundNormal.transformDirection(terrainMesh.matrixWorld).normalize(); // Преобразуем нормаль в мировые координаты
 
             // Проверяем наклон рельефа
@@ -510,10 +522,12 @@ function generateHouses() {
 
             scene.add(houseMesh);
             placedHousesCount++; // Увеличиваем счетчик успешно размещенных домов
+             // Log success to confirm it worked
+             // console.log(`Successfully placed house ${placedHousesCount} at X: ${groundPosition.x.toFixed(2)}, Y: ${groundPosition.y.toFixed(2)}, Z: ${groundPosition.z.toFixed(2)}`);
 
         } else {
-             // Raycast didn't hit. Log this only if you suspect an issue outside of normal slope filtering.
-             // Given the user's report, this log *is* the problem, so keep it for debugging.
+             // Log this only if you suspect an issue outside of normal slope filtering.
+             // Since the user reported 0 houses placed, this log is useful for debugging.
              console.warn(`Raycast for house ${i+1} DID NOT hit terrain at X: ${randX.toFixed(2)}, Z: ${randZ.toFixed(2)}. Ray origin Y: ${rayOrigin.y.toFixed(2)}, Far: ${raycastDistance.toFixed(2)}. Terrain Y bounds approx [${-TERRAIN_HEIGHT_SCALE}, ${TERRAIN_HEIGHT_SCALE}]`);
         }
     }
@@ -575,7 +589,9 @@ function animate() {
 
         // Максимальное расстояние луча должно покрывать высоту игрока плюс небольшой запас
         raycaster.set(raycasterOrigin, down);
-        raycaster.far = PLAYER_HEIGHT + PLAYER_COLLISION_TOLERANCE; // Проверяем на расстояние, равное высоте игрока + допуск
+        // Увеличиваем дальность луча для игрока на всякий случай, особенно при быстрой скорости или низкой детализации
+        raycaster.far = PLAYER_HEIGHT + PLAYER_COLLISION_TOLERANCE + 1; // Дополнительный запас
+
 
         // Проверяем пересечение луча с мешем рельефа
         const intersects = raycaster.intersectObject(terrainMesh, false);
