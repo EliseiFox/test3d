@@ -4,46 +4,46 @@
 const PLAYER_SPEED = 50.0;       // Скорость движения игрока
 const PLAYER_JUMP_HEIGHT = 7.0; // Начальная скорость прыжка игрока по Y
 const PLAYER_HEIGHT = 2.0;      // Высота "глаз" игрока над поверхностью земли
-const GRAVITY = 30.0;           // Ускорение свободного падения (увеличено для более выраженного падения/прыжка)
-const PLAYER_COLLISION_TOLERANCE = 0.2; // Небольшой допуск для коллизии, чтобы избежать дрожания
+const GRAVITY = 30.0;           // Ускорение свободного падения
+const PLAYER_COLLISION_TOLERANCE = 0.3; // Небольшой допуск для коллизии, увеличено
 
 // Параметры мира/ландшафта
-// Сид для генерации рельефа и расположения объектов. Ваша библиотека шума поддерживает числовые сиды.
-// Если вы хотите использовать строку, вам понадобится функция для преобразования строки в число от 1 до 65536.
 const WORLD_SEED_NUMBER = 54321; // Измените для другого рельефа и расположения домов
-const TERRAIN_SIZE = 512;         // Размер квадратного ландшафта (TERRAIN_SIZE x TERRAIN_SIZE) - увеличено для большего мира
-const TERRAIN_SEGMENTS = 256;     // Количество сегментов по каждой оси (больше сегментов = больше деталей, но медленнее) - увеличено для детализации
-const TERRAIN_HEIGHT_SCALE = 5;  // Максимальная высота/глубина холмов - увеличено для более выраженного рельефа
-const TERRAIN_NOISE_SCALE = 0.01; // Масштаб шума (чем меньше, тем крупнее холмы) - уменьшено для более крупных холмов
+const TERRAIN_SIZE = 512;         // Размер квадратного ландшафта
+const TERRAIN_SEGMENTS = 256;     // Количество сегментов по каждой оси
+const TERRAIN_HEIGHT_SCALE = 10;  // Максимальная высота/глубина холмов (увеличено)
+const TERRAIN_NOISE_SCALE = 0.008; // Масштаб шума (чем меньше, тем крупнее холмы) (уменьшено)
 
 // Параметры текстуры ландшафта
-const TERRAIN_TEXTURE_PATH = 'grass_texture_1024.png'; // Путь к вашей текстуре PNG 1024x1024
-const TERRAIN_TEXTURE_TILE_SIZE = 80;     // Размер в мировых единицах, на который натягивается один тайл текстуры - увеличено, чтобы текстура не была слишком мелкой
+const TERRAIN_TEXTURE_PATH = 'grass_texture_1024.png'; // Путь к текстуре
+const TERRAIN_TEXTURE_TILE_SIZE = 80;     // Размер в мировых единицах, на который натягивается один тайл текстуры
 
 // Параметры генерации домов
 const NUM_HOUSES = 100;                     // Количество генерируемых домов (попыток размещения)
-const HOUSE_TEXTURE_PATH = 'house_texture_398_239.png'; // Путь к текстуре дома (398x239)
-const HOUSE_TEXTURE_WIDTH_PX = 398;         // Ширина текстуры дома в пикселях
-const HOUSE_TEXTURE_HEIGHT_PX = 239;        // Высота текстуры дома в пикселях
-const HOUSE_BASE_UNIT_SIZE = 5.0;           // Базовый размер в мировых единицах, на который натягивается один "тайл" текстуры дома (ширина 398px)
-const HOUSE_MIN_LENGTH_UNITS = 2;           // Минимальная длина дома (вдоль длинной стороны) в HOUSE_BASE_UNIT_SIZE
-const HOUSE_MAX_LENGTH_UNITS = 10;          // Максимальная длина дома (вдоль длинной стороны) в HOUSE_BASE_UNIT_SIZE
+const HOUSE_TEXTURE_PATH = 'house_texture_398_239.png'; // Путь к текстуре дома
+const HOUSE_TEXTURE_WIDTH_PX = 398;         // Ширина текстуры дома в пикселях (для расчета соотношения сторон)
+const HOUSE_TEXTURE_HEIGHT_PX = 239;        // Высота текстуры дома в пикселях (для расчета соотношения сторон)
+const HOUSE_TEXTURE_REPEAT_WIDTH_UNITS = 5.0; // На сколько мировых единиц ширины дома натягивается вся ширина текстуры (398px)
+const HOUSE_TEXTURE_REPEAT_HEIGHT_UNITS = 5.0 * (HOUSE_TEXTURE_HEIGHT_PX / HOUSE_TEXTURE_WIDTH_PX); // На сколько мировых единиц высоты дома натягивается вся высота текстуры (239px), рассчитано по соотношению сторон
+const HOUSE_MIN_LENGTH_UNITS = 2;           // Минимальная длина дома (вдоль длинной стороны) в HOUSE_TEXTURE_REPEAT_WIDTH_UNITS
+const HOUSE_MAX_LENGTH_UNITS = 10;          // Максимальная длина дома (вдоль длинной стороны) в HOUSE_TEXTURE_REPEAT_WIDTH_UNITS
 const HOUSE_MIN_WIDTH = 5.0;                // Минимальная ширина дома (вдоль короткой стороны)
 const HOUSE_MAX_WIDTH = 15.0;               // Максимальная ширина дома (вдоль короткой стороны)
 const HOUSE_MIN_HEIGHT = 20.0;              // Минимальная высота дома
 const HOUSE_MAX_HEIGHT = 80.0;              // Максимальная высота дома
-const HOUSE_SUBMERSION_DEPTH = 0.5;         // Насколько дом "утоплен" в землю
+const HOUSE_SUBMERSION_DEPTH = 2.0;         // Насколько дом "утоплен" в землю (увеличено)
 const HOUSE_PLACEMENT_MARGIN = 50;           // Отступ от края ландшафта для размещения домов
-const HOUSE_MAX_SLOPE_DEGREES = 25;         // Максимальный наклон рельефа в градусах, на котором можно поставить дом
+const HOUSE_MAX_SLOPE_DEGREES = 25;         // Максимальный наклон рельефа в градусах
 
 
-// -------------------- КОНЕЦ НАСТРАИВАЕМЫХ ПАРАМЕТРОВ --------------------
+// -------------------- КОНЕЦ НАСТРАИВАЕМЫЕ ПАРАМЕТРОВ --------------------
 
 
 // Объявляем основные переменные Three.js
 let camera, scene, renderer;
 let controls; // Переменная для PointerLockControls
 let terrainMesh; // Ссылка на созданный меш ландшафта
+let houseMeshes = []; // Массив для хранения всех мешей домов
 
 // Переменные состояния игры
 let isGameActive = false; // Флаг активности игры (когда PointerLockControls активен)
@@ -58,6 +58,7 @@ let canJump = false;
 // Переменные для физики
 let playerVelocity = new THREE.Vector3();
 const direction = new THREE.Vector3();
+const tempVector = new THREE.Vector3(); // Временный вектор для расчетов
 
 let prevTime = performance.now(); // Время предыдущего кадра для расчета deltaTime
 
@@ -65,9 +66,11 @@ let prevTime = performance.now(); // Время предыдущего кадр�
 const blocker = document.getElementById('blocker');
 const instructions = document.getElementById('instructions');
 
-// Переменные для определения высоты игрока над землей (для коллизии)
+// Переменные для определения высоты игрока над землей и горизонтальной коллизии
 const raycaster = new THREE.Raycaster();
 const down = new THREE.Vector3(0, -1, 0); // Вектор направления вниз
+const horizontalRayOffset = PLAYER_COLLISION_TOLERANCE + 0.1; // Небольшой отступ для горизонтальных лучей
+
 
 // Сидируемый генератор случайных чисел для повторяемости расположения объектов
 let houseRandomSeed;
@@ -109,10 +112,10 @@ function init() {
     // Создаем сцену
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb); // Устанавливаем цвет неба
-    scene.fog = new THREE.Fog(0xffffff, TERRAIN_SIZE * 0.5, TERRAIN_SIZE * 1.5); // Добавляем туман для оптимизации (скрывает удаленные объекты)
+    scene.fog = new THREE.Fog(0xffffff, TERRAIN_SIZE * 0.5, TERRAIN_SIZE * 1.5); // Добавляем туман
 
     // Создаем камеру
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000); // Увеличена дальность обзора
     // Стартовая позиция в центре мира, чуть выше самой высокой возможной точки + высота игрока
     camera.position.set(0, TERRAIN_HEIGHT_SCALE + PLAYER_HEIGHT + 5, 0);
 
@@ -123,12 +126,12 @@ function init() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    // Включаем логарифмический буфер глубины для лучшей точности на больших расстояниях (может повлиять на производительность)
-    // renderer.logarithmicDepthBuffer = true;
+    // Включаем логарифмический буфер глубины
+    renderer.logarithmicDepthBuffer = true;
 
 
     // ------------- Добавляем свет -------------
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // Увеличена интенсивность
     scene.add(ambientLight);
 
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -141,6 +144,7 @@ function init() {
     // ------------- Генерируем и размещаем дома -------------
     // Важно: Дома генерируются после ландшафта, т.к. raycaster'у нужен terrainMesh
     // и terrainMesh должен быть полностью готов (добавлен в сцену и обновлена матрица).
+    // Генерируем после добавления terrainMesh в сцену
     generateHouses();
 
 
@@ -151,14 +155,19 @@ function init() {
     controls.addEventListener('lock', function () {
         isGameActive = true; // Активируем игровой процесс
         blocker.style.display = 'none';
-        prevTime = performance.now(); // Сбрасываем время, чтобы избежать большого deltaTime после паузы
+        prevTime = performance.now(); // Сбрасываем время
     });
 
     controls.addEventListener('unlock', function () {
         isGameActive = false; // Деактивируем игровой процесс
         blocker.style.display = 'block';
-        instructions.style.display = 'flex'; // Показываем инструкции снова
+        instructions.style.display = 'flex'; // Показываем инструкции
         playerVelocity.set(0, 0, 0); // Останавливаем движение при разблокировке
+         // Сбрасываем флаги движения
+         moveForward = false;
+         moveBackward = false;
+         moveLeft = false;
+         moveRight = false;
     });
 
     // Добавляем объект контролов в сцену. Камера прикреплена к этому объекту.
@@ -166,7 +175,13 @@ function init() {
 
     // ------------- Обработка событий клавиатуры -------------
     const onKeyDown = function (event) {
-        if (!isGameActive) return; // Игнорируем ввод, если игра не активна
+        // Обрабатываем ESC всегда, чтобы можно было выйти из PointerLock
+        if (event.code === 'Escape') {
+            controls.unlock();
+            return;
+        }
+
+        if (!isGameActive) return; // Игнорируем ввод движения, если игра не активна
 
         switch (event.code) {
             case 'ArrowUp':
@@ -222,7 +237,9 @@ function init() {
     // ------------- Обработка события клика для захвата указателя -------------
     instructions.addEventListener('click', function () {
          // Требуется интеракция с пользователем для Pointer Lock API
-        controls.lock();
+         if (!isGameActive) { // Только если игра еще не активна
+             controls.lock();
+         }
     });
 
     // ------------- Обработка изменения размера окна -------------
@@ -234,106 +251,81 @@ function init() {
 
 // ------------- Функция генерации рельефа -------------
 function generateTerrain() {
-    // PlaneGeometry создается в плоскости XY (-width/2 до width/2, -height/2 до height/2)
-    // и Z=0. Мы будем использовать X и Y геометрии для мировых X и Z, а Z геометрии для мировой Y (высоты).
     const geometry = new THREE.PlaneGeometry(TERRAIN_SIZE, TERRAIN_SIZE, TERRAIN_SEGMENTS, TERRAIN_SEGMENTS);
 
-    // Загружаем текстуру ландшафта
     const textureLoader = new THREE.TextureLoader();
     const groundTexture = textureLoader.load(
         TERRAIN_TEXTURE_PATH,
-        // Колбэк при успешной загрузке
         function (texture) {
             console.log("Текстура ландшафта загружена успешно:", TERRAIN_TEXTURE_PATH);
-            texture.wrapS = THREE.RepeatWrapping; // Устанавливаем повторение текстуры по горизонтали
-            texture.wrapT = THREE.RepeatWrapping; // Устанавливаем повторение текстуры по вертикали
-            // Настраиваем количество повторений текстуры на весь ландшафт
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
             texture.repeat.set(TERRAIN_SIZE / TERRAIN_TEXTURE_TILE_SIZE, TERRAIN_SIZE / TERRAIN_TEXTURE_TILE_SIZE);
-            // Фильтрация для сглаживания и уменьшения мерцания
             texture.magFilter = THREE.LinearFilter;
-            texture.minFilter = THREE.LinearMipmapLinearFilter; // Используем мипмапы для лучшей производительности и качества на расстоянии
-            // Анизотропная фильтрация - значительно улучшает качество текстур на плоских поверхностях, удаляющихся вдаль
+            texture.minFilter = THREE.LinearMipmapLinearFilter;
             texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-             // Если материал был создан до загрузки текстуры, обновите его
             if (terrainMesh && terrainMesh.material) {
                  terrainMesh.material.map = texture;
-                 terrainMesh.material.color = null; // Убираем цвет по умолчанию
+                 terrainMesh.material.color = null;
                  terrainMesh.material.needsUpdate = true;
             }
         },
-        // Колбэк прогресса загрузки (оционально)
         undefined,
-        // Колбэк при ошибке загрузки
         function (err) {
             console.error('Ошибка загрузки текстуры ландшафта:', TERRAIN_TEXTURE_PATH, err);
-             // Используем материал запасного цвета, если текстура не загрузилась
              if (terrainMesh && terrainMesh.material) {
-                 terrainMesh.material = new THREE.MeshLambertMaterial({ color: 0x00ff00, side: THREE.DoubleSide });
+                 terrainMesh.material = new THREE.MeshLambertMaterial({ color: 0x00aa00, side: THREE.DoubleSide }); // Запасной зеленый цвет
                  terrainMesh.material.needsUpdate = true;
-                 // Выведем более заметное сообщение об ошибке загрузки текстуры
                  instructions.innerHTML = "<p style='color:red;'>Ошибка загрузки текстуры ландшафта.</p><p style='font-size: 14px; color: grey;'>Убедитесь, что файл " + TERRAIN_TEXTURE_PATH + " находится рядом с index.html и script.js.</p><p style='font-size: 14px; color: grey;'>Также проверьте консоль браузера (F12) на наличие других ошибок (например, CORS).</p>";
-                 blocker.style.display = 'block'; // Показываем блок с ошибкой
+                 blocker.style.display = 'block';
              }
         }
     );
 
-    // Генерируем рельеф, изменяя Z-координаты вершин (которая станет мировой Y после поворота)
     const positionAttribute = geometry.attributes.position;
-    const uvAttribute = geometry.attributes.uv; // Получаем атрибут UV
+    const uvAttribute = geometry.attributes.uv;
     const vertices = positionAttribute.array;
     const uvs = uvAttribute.array;
 
     const numVertices = (TERRAIN_SEGMENTS + 1) * (TERRAIN_SEGMENTS + 1);
 
     for (let i = 0; i < numVertices; i++) {
-        // Оригинальные координаты вершины в локальной системе PlaneGeometry (XY плоскость, Z=0)
-        const originalX = vertices[i * 3];      // Это станет мировой X после поворота
-        const originalY = vertices[i * 3 + 1];  // Это станет минус мировой Z после поворота
+        const originalX = vertices[i * 3];
+        const originalY = vertices[i * 3 + 1];
 
-        // Генерируем высоту на основе шума Симплекса
-        // Используем оригинальные X и Y (которые маппятся на мировые X и Z) для генерации шума
         const height = noise.simplex2(originalX * TERRAIN_NOISE_SCALE, originalY * TERRAIN_NOISE_SCALE) * TERRAIN_HEIGHT_SCALE;
 
-        // Устанавливаем рассчитанную высоту в Z-координату вершины в локальной системе геометрии.
-        // После поворота PlaneGeometry на -PI/2 вокруг X, эта Z-координата станет мировой Y.
         vertices[i * 3 + 2] = height;
 
-        // Обновляем UV координаты для правильного наложения текстуры
-        // Маппируем координаты, которые станут мировыми X и Z, на U и V
-        const u = originalX / TERRAIN_TEXTURE_TILE_SIZE;
-        const v = -originalY / TERRAIN_TEXTURE_TILE_SIZE; // Используем -originalY для корректного маппинга по "мировой Z"
+        // UVs already correctly map -TERRAIN_SIZE/2 to TERRAIN_SIZE/2 to 0-1 range by default PlaneGeometry
+        // We only need to scale them based on our desired tile size
+        const u = (originalX + TERRAIN_SIZE / 2) / TERRAIN_TEXTURE_TILE_SIZE;
+        const v = (originalY + TERRAIN_SIZE / 2) / TERRAIN_TEXTURE_TILE_SIZE; // Note: originalY is -height/2 to height/2, map to 0-1 range then scale
 
         uvs[i * 2] = u;
         uvs[i * 2 + 1] = v;
     }
 
-    // Сигнализируем Three.js, что атрибуты геометрии были изменены
     positionAttribute.needsUpdate = true;
     uvAttribute.needsUpdate = true;
-    geometry.computeVertexNormals(); // Пересчитываем нормали для правильного освещения рельефа после изменения вершин
-
-    // !!! ВАЖНО: Пересчитываем Bounding Box и Bounding Sphere после изменения вершин !!!
-    // Это помогает Raycaster быстро отсекать объекты
+    geometry.computeVertexNormals();
     geometry.computeBoundingBox();
     geometry.computeBoundingSphere();
 
 
-    // Создаем материал.
     const material = new THREE.MeshLambertMaterial({
-        map: groundTexture, // Текстура (может быть еще в процессе загрузки)
-        color: groundTexture.isTexture ? null : 0x00ff00, // Цвет по умолчанию, если текстура еще не загрузилась или ошибка
-        side: THREE.DoubleSide // Отображаем обе стороны полигона
+        map: groundTexture,
+        color: groundTexture.isTexture ? null : 0x00aa00,
+        side: THREE.DoubleSide
     });
 
     terrainMesh = new THREE.Mesh(geometry, material);
-    // PlaneGeometry создается в плоскости XY, поворачиваем ее, чтобы она лежала на XZ
-    terrainMesh.rotation.x = -Math.PI / 2;
+    terrainMesh.rotation.x = -Math.PI / 2; // Поворачиваем плоскость, чтобы она лежала на XZ
+     terrainMesh.receiveShadow = true; // Добавляем прием теней на ландшафт (если свет поддерживает тени)
     scene.add(terrainMesh);
 
-    // !!! ВАЖНО: Принудительно обновляем мировую матрицу меша после добавления в сцену и трансформаций !!!
-    // Это гарантирует, что Raycaster будет использовать актуальные данные о положении и ориентации меша в мире.
-    terrainMesh.updateMatrixWorld(true);
+    terrainMesh.updateMatrixWorld(true); // Обновляем мировую матрицу для корректной работы Raycaster
 }
 
 
@@ -342,7 +334,6 @@ function generateHouses() {
     const textureLoader = new THREE.TextureLoader();
     const houseTexture = textureLoader.load(
         HOUSE_TEXTURE_PATH,
-        // Success callback
         function(texture) {
             console.log("Текстура дома загружена успешно:", HOUSE_TEXTURE_PATH);
              texture.wrapS = THREE.RepeatWrapping;
@@ -351,7 +342,6 @@ function generateHouses() {
              texture.minFilter = THREE.LinearMipmapLinearFilter;
              texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-             // Update materials if they were created with a placeholder
              scene.traverse(function(object) {
                  if (object.isMesh && object !== terrainMesh && object.material.userData && object.material.userData.isHouseMaterial) {
                      object.material.map = texture;
@@ -361,174 +351,200 @@ function generateHouses() {
              });
         },
         undefined, // Progress callback
-        // Error callback
         function(err) {
             console.error('Ошибка загрузки текстуры дома:', HOUSE_TEXTURE_PATH, err);
              scene.traverse(function(object) {
                  if (object.isMesh && object !== terrainMesh && object.material.userData && object.material.userData.isHouseMaterial) {
-                    // Fallback to a solid color material
-                    object.material = new THREE.MeshLambertMaterial({ color: 0x8b4513 }); // Brown color fallback
+                    object.material = new THREE.MeshLambertMaterial({ color: 0x8b4513 }); // Brown fallback
                     object.material.needsUpdate = true;
                  }
              });
-             // Update instructions to indicate texture error
              instructions.innerHTML = "<p style='color:red;'>Ошибка загрузки текстуры дома.</p><p style='font-size: 14px; color: grey;'>Убедитесь, что файл " + HOUSE_TEXTURE_PATH + " находится рядом с index.html и script.js.</p><p style='font-size: 14px; color: grey;'>Также проверьте консоль браузера (F12) на наличие других ошибок (например, CORS).</p>";
-             blocker.style.display = 'block'; // Show error block
+             blocker.style.display = 'block';
         }
     );
 
     const houseMaterial = new THREE.MeshLambertMaterial({
-         map: houseTexture && houseTexture.isTexture ? houseTexture : null, // Use texture if loaded, otherwise null
-         color: houseTexture && houseTexture.isTexture ? null : 0x8b4513 // Brown fallback color if texture not loaded yet
+         map: houseTexture && houseTexture.isTexture ? houseTexture : null,
+         color: houseTexture && houseTexture.isTexture ? null : 0x8b4513
     });
-    // Add a flag to identify house materials later for updating
     houseMaterial.userData.isHouseMaterial = true;
 
 
-    // Raycaster для определения высоты и нормали рельефа под домом
     const houseRaycaster = new THREE.Raycaster();
-    // Начало луча значительно выше максимальной возможной высоты рельефа
-    // Ray origin Y: 135.00, Far: 190.00. Terrain Y bounds approx [-5, 5] - этот диапазон должен работать.
-    // Давайте еще увеличим запас, чтобы быть на 100% уверенными.
-    const raycastOriginHeight = TERRAIN_HEIGHT_SCALE + HOUSE_MAX_HEIGHT + 100; // Start very high
-    const raycastDistance = raycastOriginHeight + TERRAIN_HEIGHT_SCALE + 100; // Extend well below min terrain height
-
+    const raycastOriginHeight = TERRAIN_HEIGHT_SCALE + HOUSE_MAX_HEIGHT + 100;
+    const raycastDistance = raycastOriginHeight + TERRAIN_HEIGHT_SCALE + 100;
 
     const maxSlopeCos = Math.cos(THREE.MathUtils.degToRad(HOUSE_MAX_SLOPE_DEGREES));
 
-    // Определяем границы квадратной области для размещения домов с учетом отступа
     const terrainHalfSize = TERRAIN_SIZE / 2;
     const minX = -terrainHalfSize + HOUSE_PLACEMENT_MARGIN;
     const maxX = terrainHalfSize - HOUSE_PLACEMENT_MARGIN;
     const minZ = -terrainHalfSize + HOUSE_PLACEMENT_MARGIN;
     const maxZ = terrainHalfSize - HOUSE_PLACEMENT_MARGIN;
 
-    let placedHousesCount = 0; // Счетчик успешно размещенных домов
+    let placedHousesCount = 0;
+
+    // Очищаем массив домов перед генерацией (на случай повторного вызова)
+    houseMeshes = [];
+    // Удаляем старые дома из сцены (если есть)
+    scene.traverse(function(object) {
+        if (object.isMesh && object !== terrainMesh && object.userData.isHouse) {
+            scene.remove(object);
+             // Освобождаем память
+             if (object.geometry) object.geometry.dispose();
+             if (object.material && object.material.dispose) object.material.dispose();
+        }
+    });
+
 
     for (let i = 0; i < NUM_HOUSES; i++) {
-        // Генерируем случайные координаты равномерно в пределах квадратной области с отступом
         const randX = houseRandom() * (maxX - minX) + minX;
         const randZ = houseRandom() * (maxZ - minZ) + minZ;
 
-        // Точка, с которой начинаем луч вниз
         const rayOrigin = new THREE.Vector3(randX, raycastOriginHeight, randZ);
         houseRaycaster.set(rayOrigin, down);
-        houseRaycaster.far = raycastDistance; // Устанавливаем достаточную длину луча
+        houseRaycaster.far = raycastDistance;
 
-        // Проверяем пересечение луча с мешем рельефа
-        // Передаем terrainMesh в массив объектов для проверки
-        const intersects = houseRaycaster.intersectObject(terrainMesh, false); // Pass terrainMesh as the single object to check
+        // Проверяем пересечение луча только с мешем рельефа для поиска места
+        const intersects = houseRaycaster.intersectObject(terrainMesh, false);
 
         if (intersects.length > 0) {
             const hit = intersects[0];
-            const groundPosition = hit.point; // Позиция на земле в мировых координатах
-            const groundNormal = hit.face.normal.clone(); // Нормаль рельефа в локальных координатах меша
-            // !!! ВАЖНО: Нормали граней PlaneGeometry изначально находятся в локальной системе XY плоскости.
-            // После поворота меша, нужно преобразовать нормаль грани в мировые координаты.
-            // THREE.Raycaster.intersectObject уже делает это для hit.point, но hit.face.normal
-            // может быть в локальных координатах, если Raycaster не настроен иначе или есть нюансы.
-            // Убедимся, что нормаль преобразуется в мировые координаты:
-            groundNormal.transformDirection(terrainMesh.matrixWorld).normalize(); // Преобразуем нормаль в мировые координаты
+            const groundPosition = hit.point;
+            const groundNormal = hit.face.normal.clone();
+            groundNormal.transformDirection(terrainMesh.matrixWorld).normalize();
 
-            // Проверяем наклон рельефа
             if (groundNormal.y < maxSlopeCos) {
-                // Слишком крутой склон, пропускаем этот дом
-                // console.log(`Skipped house at ${randX.toFixed(2)}, ${randZ.toFixed(2)} due to slope: ${THREE.MathUtils.radToDeg(Math.acos(groundNormal.y)).toFixed(2)} degrees`);
-                continue;
+                continue; // Слишком крутой склон
             }
 
-            // Генерируем случайные размеры дома
             const houseLengthUnits = Math.floor(houseRandom() * (HOUSE_MAX_LENGTH_UNITS - HOUSE_MIN_LENGTH_UNITS + 1)) + HOUSE_MIN_LENGTH_UNITS;
-            const houseLength = houseLengthUnits * HOUSE_BASE_UNIT_SIZE; // Длина вдоль Z в BoxGeometry
-            const houseWidth = houseRandom() * (HOUSE_MAX_WIDTH - HOUSE_MIN_WIDTH) + HOUSE_MIN_WIDTH; // Ширина вдоль X в BoxGeometry
-            const houseHeight = houseRandom() * (HOUSE_MAX_HEIGHT - HOUSE_MIN_HEIGHT) + HOUSE_MIN_HEIGHT; // Высота вдоль Y в BoxGeometry
+            // Длина дома вдоль Z (глубина BoxGeometry) зависит от HOUSE_TEXTURE_REPEAT_WIDTH_UNITS
+            const houseLength = houseLengthUnits * HOUSE_TEXTURE_REPEAT_WIDTH_UNITS;
+            // Ширина дома вдоль X (ширина BoxGeometry)
+            const houseWidth = houseRandom() * (HOUSE_MAX_WIDTH - HOUSE_MIN_WIDTH) + HOUSE_MIN_WIDTH;
+            // Высота дома вдоль Y (высота BoxGeometry)
+            const houseHeight = houseRandom() * (HOUSE_MAX_HEIGHT - HOUSE_MIN_HEIGHT) + HOUSE_MIN_HEIGHT;
+
+            // Проверяем, не выходит ли дом за границы ландшафта после определения размеров
+            const halfWidth = houseWidth / 2;
+            const halfLength = houseLength / 2;
+            if (randX - halfWidth < minX || randX + halfWidth > maxX || randZ - halfLength < minZ || randZ + halfLength > maxZ) {
+                 continue; // Дом слишком большой для размещения в границах отступа
+            }
 
 
-            // Создаем геометрию коробки. BoxGeometry(width, height, depth) -> (X, Y, Z)
-            // width = houseWidth, height = houseHeight, depth = houseLength
             const houseGeometry = new THREE.BoxGeometry(houseWidth, houseHeight, houseLength);
 
-            // Настраиваем UV координаты для правильного наложения текстуры с повторением
-            const textureAspectRatio = HOUSE_TEXTURE_WIDTH_PX / HOUSE_TEXTURE_HEIGHT_PX;
-
+            // --- Настройка UV координат ---
             const uvs = houseGeometry.attributes.uv.array;
-            // const positions = houseGeometry.attributes.position.array; // Not needed for this UV logic
+            const positions = houseGeometry.attributes.position.array;
 
-            // Проходим по всем UV координатам и масштабируем их
-            // U мапится по горизонтали грани, V по вертикали грани.
-            // Текстура дома шире, чем выше (398x239), повторение предполагается по горизонтали текстуры.
-            // +/-X грани (Width sides, face YZ): горизонталь грани - ось Z геометрии (длина). Вертикаль грани - ось Y геометрии (высота).
-            //   Дефолт: U по Y, V по Z. Надо поменять: U по Z (длина), V по Y (высота).
-            // +/-Z грани (Length sides, face XY): горизонталь грани - ось X геометрии (ширина). Вертикаль грани - ось Y геометрии (высота).
-            //   Дефолт: U по X, V по Y. Не надо менять: U по X (ширина), V по Y (высота).
-            // +/-Y грани (Top/Bottom, face XZ): горизонталь грани - ось X геометрии (ширина). Вертикаль грани - ось Z геометрии (длина).
-            //   Дефолт: U по X, V по Z. Не надо менять: U по X (ширина), V по Z (длина).
+            // Определяем размеры граней в мировых единицах (относительно центра геометрии)
+            const geomWidth = houseWidth;
+            const geomHeight = houseHeight;
+            const geomDepth = houseLength;
+
+            const uTile = HOUSE_TEXTURE_REPEAT_WIDTH_UNITS; // Ширина одного тайла текстуры в мировых единицах
+            const vTile = HOUSE_TEXTURE_REPEAT_HEIGHT_UNITS; // Высота одного тайла текстуры в мировых единицах
+
+            // BoxGeometry UV mapping order: +X, -X, +Y, -Y, +Z, -Z
+            // Each face has 4 vertices, 2 UV coordinates per vertex = 8 UVs per face.
+            // 6 faces * 8 UVs/face = 48 UVs total for the 24 vertices.
 
             for (let j = 0; j < uvs.length; j += 2) {
                  const defaultU = uvs[j];
                  const defaultV = uvs[j + 1];
+                 const vertexIndex = j / 2; // index 0-23
 
-                 const vertexIndex = j / 2; // Index of the vertex in the uv array
-                 const faceIndex = Math.floor(vertexIndex / 4); // Index of the face (0-5)
+                 // Find the face index (0-5) and the vertex index within the face (0-3)
+                 const faceIndex = Math.floor(vertexIndex / 4);
+                 const vertexInFaceIndex = vertexIndex % 4;
 
-                 let uScale = 1.0;
-                 let vScale = 1.0;
+                 // Get the local vertex position for reference (optional, but helps logic)
+                 const localX = positions[vertexIndex * 3];
+                 const localY = positions[vertexIndex * 3 + 1];
+                 const localZ = positions[vertexIndex * 3 + 2];
+
+                 let uScaled, vScaled;
 
                  switch (faceIndex) {
-                      case 0: // +X face (Width sides)
-                      case 1: // -X face (Width sides)
-                          // Face dimensions: length (Z) x height (Y). Default U maps Y, V maps Z.
-                          // We want U maps Z (length), V maps Y (height). Swap and scale.
-                          uScale = houseLength / HOUSE_BASE_UNIT_SIZE; // U maps length (Z)
-                          vScale = 1.0; // V maps height (Y) - texture height covers full building height
-                          uvs[j] = defaultV * uScale; // Default V is based on Z extent
-                          uvs[j+1] = defaultU * vScale; // Default U is based on Y extent
+                      case 0: // +X face (Right side)
+                      case 1: // -X face (Left side)
+                          // Default UVs map Y to U, Z to V.
+                          // Face maps along local Y (height) and local Z (depth/length).
+                          // We want U to map local Z (depth/length), V to map local Y (height).
+                          // U range: 0 to geomDepth. V range: 0 to geomHeight.
+                          // Need to map local Z position to U, local Y position to V.
+                          // Vertex coords are -geomWidth/2..geomWidth/2, -geomHeight/2..geomHeight/2, -geomDepth/2..geomDepth/2
+                          // For +X/-X faces, local X is fixed at +/- geomWidth/2.
+                          // We map local Z (-geomDepth/2 to geomDepth/2) to U (0 to num_repeats_U).
+                          // We map local Y (-geomHeight/2 to geomHeight/2) to V (0 to num_repeats_V).
+                          // Scale U by (geomDepth / uTile), V by (geomHeight / vTile).
+                          // Default U is based on local Y extent (0-1), default V is based on local Z extent (0-1).
+                          // We need to map defaultV (0-1 based on Z) to U, and defaultU (0-1 based on Y) to V.
+                          uScaled = defaultV * (geomDepth / uTile); // V based on Z, scale by total repeats along depth
+                          vScaled = defaultU * (geomHeight / vTile); // U based on Y, scale by total repeats along height
+                          uvs[j] = uScaled;
+                          uvs[j+1] = vScaled;
                           break;
 
                       case 2: // +Y face (Top)
                       case 3: // -Y face (Bottom)
-                          // Face dimensions: width (X) x length (Z). Default U maps X, V maps Z.
-                          // We want U maps X (width), V maps Z (length). No swap needed, just scale.
-                          uScale = houseWidth / HOUSE_BASE_UNIT_SIZE * textureAspectRatio; // U maps width (X)
-                          vScale = houseLength / HOUSE_BASE_UNIT_SIZE; // V maps length (Z)
-                          uvs[j] = defaultU * uScale;
-                          uvs[j+1] = defaultV * vScale;
+                          // Default UVs map X to U, Z to V.
+                          // Face maps along local X (width) and local Z (depth/length).
+                          // We want U to map local X (width), V to map local Z (depth/length).
+                          // U range: 0 to geomWidth. V range: 0 to geomDepth.
+                          // Scale U by (geomWidth / uTile), V by (geomDepth / uTile) - typically top/bottom use same tile size for both axes.
+                          // Default U is based on local X extent (0-1), default V is based on local Z extent (0-1).
+                          uScaled = defaultU * (geomWidth / uTile); // U based on X, scale by repeats along width
+                          vScaled = defaultV * (geomDepth / uTile); // V based on Z, scale by repeats along depth
+                          uvs[j] = uScaled;
+                          uvs[j+1] = vScaled;
                           break;
 
-                      case 4: // +Z face (Length sides)
-                      case 5: // -Z face (Length sides)
-                          // Face dimensions: width (X) x height (Y). Default U maps X, V maps Y.
-                          // We want U maps X (width), V maps Y (height). No swap needed, just scale.
-                          uScale = houseWidth / HOUSE_BASE_UNIT_SIZE * textureAspectRatio; // U maps width (X)
-                          vScale = 1.0; // V maps height (Y)
-                          uvs[j] = defaultU * uScale;
-                          uvs[j+1] = defaultV * vScale;
+                      case 4: // +Z face (Back side)
+                      case 5: // -Z face (Front side)
+                          // Default UVs map X to U, Y to V.
+                          // Face maps along local X (width) and local Y (height).
+                          // We want U to map local X (width), V to map local Y (height).
+                          // U range: 0 to geomWidth. V range: 0 to geomHeight.
+                          // Scale U by (geomWidth / uTile), V by (geomHeight / vTile).
+                          // Default U is based on local X extent (0-1), default V is based on local Y extent (0-1).
+                          uScaled = defaultU * (geomWidth / uTile); // U based on X, scale by repeats along width
+                          vScaled = defaultV * (geomHeight / vTile); // V based on Y, scale by repeats along height
+                          uvs[j] = uScaled;
+                          uvs[j+1] = vScaled;
                           break;
                  }
             }
 
             houseGeometry.attributes.uv.needsUpdate = true;
+            // --- Конец настройки UV координат ---
+
 
             const houseMesh = new THREE.Mesh(houseGeometry, houseMaterial);
 
-            // Позиционируем дом. Центр меша должен быть на groundPosition + половина высоты - submersion.
             houseMesh.position.copy(groundPosition);
+            // Позиционируем центр дома так, чтобы нижняя грань была на groundPosition - HOUSE_SUBMERSION_DEPTH
             houseMesh.position.y += houseHeight / 2 - HOUSE_SUBMERSION_DEPTH;
 
-            // Ориентируем дом по нормали рельефа. Вектор (0,1,0) в локальной системе меша (Y Up)
-            // должен совпасть с worldNormal (нормалью рельефа).
+
             const upVector = new THREE.Vector3(0, 1, 0);
             houseMesh.quaternion.setFromUnitVectors(upVector, groundNormal);
 
+            houseMesh.userData.isHouse = true; // Помечаем меш как дом для удобства
+            houseMesh.castShadow = true; // Добавляем отбрасывание теней от дома
+             houseMesh.receiveShadow = true; // Добавляем прием теней на дом
+
             scene.add(houseMesh);
-            placedHousesCount++; // Увеличиваем счетчик успешно размещенных домов
-             // Log success to confirm it worked
+            houseMeshes.push(houseMesh); // Добавляем дом в массив для коллизии
+            placedHousesCount++;
              // console.log(`Successfully placed house ${placedHousesCount} at X: ${groundPosition.x.toFixed(2)}, Y: ${groundPosition.y.toFixed(2)}, Z: ${groundPosition.z.toFixed(2)}`);
 
         } else {
-             // Log this only if you suspect an issue outside of normal slope filtering.
-             // Since the user reported 0 houses placed, this log is useful for debugging.
-             console.warn(`Raycast for house ${i+1} DID NOT hit terrain at X: ${randX.toFixed(2)}, Z: ${randZ.toFixed(2)}. Ray origin Y: ${rayOrigin.y.toFixed(2)}, Far: ${raycastDistance.toFixed(2)}. Terrain Y bounds approx [${-TERRAIN_HEIGHT_SCALE}, ${TERRAIN_HEIGHT_SCALE}]`);
+             // console.warn(`Raycast for house ${i+1} DID NOT hit terrain at X: ${randX.toFixed(2)}, Z: ${randZ.toFixed(2)}. Ray origin Y: ${rayOrigin.y.toFixed(2)}, Far: ${raycastDistance.toFixed(2)}. Terrain Y bounds approx [${-TERRAIN_HEIGHT_SCALE}, ${TERRAIN_HEIGHT_SCALE}]`);
         }
     }
      console.log(`Попыток разместить домов: ${NUM_HOUSES}. Успешно размещено: ${placedHousesCount}.`);
@@ -552,54 +568,100 @@ function animate() {
     // Обновляем физику и позицию игрока только если игра активна
     if (isGameActive) {
 
-        // Применяем гравитацию к вертикальной скорости
+        // Применяем гравитацию
         playerVelocity.y -= GRAVITY * deltaTime;
 
-        // Рассчитываем горизонтальное движение на основе нажатых клавиш
+        // Рассчитываем желаемое горизонтальное движение на основе нажатых клавиш
         direction.z = Number(moveForward) - Number(moveBackward);
         direction.x = Number(moveRight) - Number(moveLeft);
-
-        // Если есть горизонтальное движение, нормализуем
-        if (moveForward || moveBackward || moveLeft || moveRight) {
-            direction.normalize();
-        } else {
-            // Если нет горизонтального движения, сбрасываем горизонтальную скорость
-             direction.x = 0;
-             direction.z = 0;
+        // Нормализуем, только если есть движение по обеим осям
+        if (direction.x !== 0 || direction.z !== 0) {
+             direction.normalize();
         }
 
-        // Перемещаем игрока горизонтально (через контролы), учитывая время и скорость
-        // controls.moveRight и controls.moveForward ожидают расстояние
-        controls.moveRight(direction.x * PLAYER_SPEED * deltaTime);
-        controls.moveForward(direction.z * PLAYER_SPEED * deltaTime);
+        // Рассчитываем предполагаемый горизонтальный сдвиг за этот кадр
+        const moveDeltaX = direction.x * PLAYER_SPEED * deltaTime;
+        const moveDeltaZ = direction.z * PLAYER_SPEED * deltaTime;
 
+        // --- Горизонтальная коллизия с рельефом и домами ---
+        // Создаем список объектов для проверки коллизии
+        const collisionObjects = [terrainMesh, ...houseMeshes];
 
-        // Применяем вертикальную скорость к позиции игрока (камере), учитывая время
-        // THREE.PointerLockControls управляет положением controls.getObject(),
-        // а камера прикреплена к нему. Изменение camera.position напрямую
-        // изменяет ее позицию относительно controls.getObject().
-        // Это работает для вертикального движения.
+        // Проверяем коллизию для каждого направления движения отдельно
+        let actualMoveX = moveDeltaX;
+        let actualMoveZ = moveDeltaZ;
+
+        // Raycast вперед/назад
+        if (moveDeltaZ !== 0) {
+             tempVector.copy(direction); // direction уже нормализован и в локальной горизонтальной плоскости камеры
+             tempVector.y = 0; // Убедимся, что вектор строго горизонтальный
+             tempVector.normalize(); // Пере-нормализуем на всякий случай
+             // Получаем направление в мировых координатах
+             const rayDirectionZ = tempVector.applyQuaternion(camera.quaternion); // Применяем вращение камеры
+
+             // Начало луча - текущая позиция игрока
+             const rayOrigin = camera.position.clone();
+
+             // Проверяем спереди или сзади
+             raycaster.set(rayOrigin, rayDirectionZ);
+             raycaster.far = Math.abs(moveDeltaZ) + horizontalRayOffset; // Проверяем чуть дальше, чем предполагаемое движение
+
+             const horizontalIntersectsZ = raycaster.intersectObjects(collisionObjects, true);
+
+             if (horizontalIntersectsZ.length > 0 && horizontalIntersectsZ[0].distance <= Math.abs(moveDeltaZ) + horizontalRayOffset) {
+                 // Столкнулись с чем-то при движении вперед/назад
+                 actualMoveZ = 0; // Останавливаем движение по Z
+                 // Можно добавить небольшое скольжение: actualMoveZ = Math.sign(moveDeltaZ) * Math.max(0, horizontalIntersectsZ[0].distance - horizontalRayOffset);
+                 // Но полное прекращение движения проще и часто достаточно.
+             }
+        }
+
+        // Raycast влево/вправо
+        if (moveDeltaX !== 0) {
+            tempVector.set(direction.x, 0, 0); // направление только по локальной X
+            tempVector.normalize();
+             const rayDirectionX = tempVector.applyQuaternion(camera.quaternion); // Применяем вращение камеры
+
+             const rayOrigin = camera.position.clone();
+
+             raycaster.set(rayOrigin, rayDirectionX);
+             raycaster.far = Math.abs(moveDeltaX) + horizontalRayOffset;
+
+             const horizontalIntersectsX = raycaster.intersectObjects(collisionObjects, true);
+
+             if (horizontalIntersectsX.length > 0 && horizontalIntersectsX[0].distance <= Math.abs(moveDeltaX) + horizontalRayOffset) {
+                 // Столкнулись с чем-то при движении влево/вправо
+                 actualMoveX = 0; // Останавливаем движение по X
+                 // Можно добавить скольжение: actualMoveX = Math.sign(moveDeltaX) * Math.max(0, horizontalIntersectsX[0].distance - horizontalRayOffset);
+             }
+        }
+
+        // Применяем скорректированное горизонтальное движение
+        controls.moveRight(actualMoveX);
+        controls.moveForward(actualMoveZ); // Note: PointerLockControls moveForward is along *negative* Z axis
+
+        // Применяем вертикальную скорость
         camera.position.y += playerVelocity.y * deltaTime;
 
-        // ------------- Простая коллизия с рельефом (с использованием Raycasting) -------------
-        // Создаем луч, идущий вниз от позиции игрока
-        // Начало луча должно быть чуть выше ног игрока, чтобы избежать самопересечения
+        // --- Вертикальная коллизия с рельефом и домами (земля) ---
+        // Создаем луч, идущий вниз от позиции игрока (уровень "ног")
+        const feetYOffset = PLAYER_HEIGHT * 0.9; // Начинаем луч чуть выше "ног"
         const raycasterOrigin = camera.position.clone();
-        raycasterOrigin.y -= PLAYER_HEIGHT * 0.5; // Начинаем луч примерно посередине игрока или ниже
+        raycasterOrigin.y -= feetYOffset;
 
-        // Максимальное расстояние луча должно покрывать высоту игрока плюс небольшой запас
+        // Дальность луча должна покрывать высоту "ног" до нижнего края игрока + запас
         raycaster.set(raycasterOrigin, down);
-        // Увеличиваем дальность луча для игрока на всякий случай, особенно при быстрой скорости или низкой детализации
-        raycaster.far = PLAYER_HEIGHT + PLAYER_COLLISION_TOLERANCE + 1; // Дополнительный запас
+        raycaster.far = feetYOffset + PLAYER_COLLISION_TOLERANCE;
 
 
-        // Проверяем пересечение луча с мешем рельефа
-        const intersects = raycaster.intersectObject(terrainMesh, false);
+        // Проверяем пересечение луча с рельефом и домами
+        // intersectObjects вернет массив пересечений, отсортированных по расстоянию
+        const intersects = raycaster.intersectObjects(collisionObjects, true);
 
         // Определяем целевую Y-позицию для ног игрока
-        const targetPlayerFeetY = intersects.length > 0 ? intersects[0].point.y : -Infinity; // -Infinity, если нет пересечения
+        const targetPlayerFeetY = intersects.length > 0 ? intersects[0].point.y : -Infinity;
 
-        // Определяем целевую Y-позицию для глаз игрока (где находится камера)
+        // Определяем целевую Y-позицию для глаз игрока (камеры)
         const targetCameraY = targetPlayerFeetY + PLAYER_HEIGHT;
 
 
@@ -612,14 +674,18 @@ function animate() {
             // Если игрок падал (скорость Y отрицательная), останавливаем падение
             if (playerVelocity.y < 0) {
                  playerVelocity.y = 0;
-                 canJump = true; // Разрешаем прыжок, так как коснулись земли
+                 canJump = true; // Разрешаем прыжок
             }
 
         } else if (camera.position.y <= targetCameraY + PLAYER_COLLISION_TOLERANCE) {
-             // Если игрок находится очень близко к земле сверху (в пределах допуска) ИЛИ ниже земли,
+             // Если игрок очень близко к земле сверху (в пределах допуска) ИЛИ ниже земли,
              // и его скорость по Y <= 0 (не прыгает вверх), считаем, что он на земле
              if (playerVelocity.y <= 0) {
                  canJump = true;
+                  // Корректируем позицию, если очень близко, чтобы не "висеть"
+                  if (camera.position.y < targetCameraY) {
+                      camera.position.y = targetCameraY;
+                  }
              } else {
                  canJump = false; // Если игрок активно движется вверх (прыгает)
              }
@@ -634,9 +700,6 @@ function animate() {
         playerVelocity.set(0,0,0);
          direction.x = 0;
          direction.z = 0;
-        // Camera position is not updated by controls.move if controls are unlocked,
-        // and vertical physics loop is inside the isGameActive check. So camera position
-        // remains fixed vertically when unlocked.
     }
 
 
